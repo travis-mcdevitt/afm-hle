@@ -6,7 +6,7 @@ requires-python = ">=3.9"
 dependencies = []
 
 [project.optional-dependencies]
-data = ["huggingface-hub>=0.34,<2", "pyarrow>=18,<24"]
+data = ["huggingface-hub>=0.34,<2", "pyarrow>=18,<24", "pillow>=11,<13"]
 
 [project.scripts]
 afm-hle = "afm_hle.cli:main"
@@ -17,3 +17,6 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["afm_hle*"]
+
+[tool.setuptools.package-data]
+afm_hle = ["judge_prompt.txt"]

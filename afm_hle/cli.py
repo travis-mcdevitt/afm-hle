@@ -13,6 +13,8 @@ import time
 import urllib.error
 import urllib.request
 
+from .images import gateway_image, POLICY
+
 MODELS = ('afm-cloud', 'afm-cloud-pro')
 # From centerforaisafety/hle (MIT); see docs/METHODOLOGY.md and NOTICE.
 PROMPT = ('Your response should be in the following format:\n'
@@ -45,17 +47,21 @@ def private_json(path, value):
 
 
 def request(endpoint, token_file, path, body=None):
+    return request_bearer(endpoint, Path(token_file).read_text().strip(), path, body)
+
+
+def request_bearer(endpoint, token, path, body=None, timeout=160):
     # No retry, redirect, fallback, or SDK default retry behavior.
     class NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self, *args, **kwargs):
             return None
     req = urllib.request.Request(endpoint.rstrip('/') + path,
         data=encode(body) if body is not None else None,
-        headers={'Authorization': 'Bearer ' + Path(token_file).read_text().strip(),
+        headers={'Authorization': 'Bearer ' + token,
                  'Content-Type': 'application/json'})
     opener = urllib.request.build_opener(NoRedirect)
     try:
-        response = opener.open(req, timeout=160)
+        response = opener.open(req, timeout=timeout)
     except urllib.error.HTTPError as error:
         response = error
     with response:
@@ -69,8 +75,7 @@ def payload(question, model):
     content = [{'type': 'text', 'text': question['question']}]
     image = question.get('image')
     if image:
-        if not isinstance(image, str) or not image.startswith(('data:image/png;base64,', 'data:image/jpeg;base64,')):
-            raise ValueError('unsupported image: require inline PNG/JPEG')
+        image = gateway_image(image)
         content.append({'type': 'image_url', 'image_url': {'url': image}})
     body = {'model': model, 'stream': False, 'messages': [
         {'role': 'system', 'content': PROMPT}, {'role': 'user', 'content': content}]}
@@ -85,7 +90,8 @@ def prepare(args):
     info = HfApi().dataset_info('cais/hle', revision=args.revision)
     path = hf_hub_download('cais/hle', 'data/test-00000-of-00001.parquet',
         repo_type='dataset', revision=info.sha, cache_dir=str(args.output.parent / 'hf-cache'))
-    rows = pq.read_table(path).to_pylist()
+    rows = pq.read_table(path, columns=['id', 'question', 'image', 'answer',
+                                       'answer_type', 'raw_subject', 'category']).to_pylist()
     # Stable hash order avoids subject/order bias in interrupted prefixes.
     rows.sort(key=lambda q: hashlib.sha256(('afm-hle-v1:' + q['id']).encode()).hexdigest())
     private_json(args.output, {'dataset': 'cais/hle', 'revision': info.sha,
@@ -132,7 +138,7 @@ def initialize(db, data, endpoint):
     manifest = {'dataset': data['dataset'], 'revision': data['revision'],
                 'dataset_sha256': digest(data), 'models': MODELS,
                 'prompt_sha256': digest(PROMPT), 'endpoint': endpoint,
-                'protocol': 'afm-hle-v1', 'total_questions': len(questions)}
+                'protocol': 'afm-hle-v2', 'image_policy': POLICY, 'total_questions': len(questions)}
     serialized = encode(manifest).decode()
     existing = db.execute('SELECT manifest FROM config WHERE id=1').fetchone()
     if existing and existing[0] != serialized:
@@ -145,6 +151,28 @@ def initialize(db, data, endpoint):
         db.execute("UPDATE items SET status='unknown' WHERE status='inflight'")
         db.execute("UPDATE attempts SET status='unknown' WHERE status='inflight'")
     return manifest
+
+
+def migrate_images(args):
+    """Upgrade v1 only when all dispatched inputs are identical under v2."""
+    data = json.loads(args.data.read_text())
+    questions = {q['id']: q for q in data['questions']}
+    with state(args.db) as db:
+        old = json.loads(db.execute('SELECT manifest FROM config WHERE id=1').fetchone()[0])
+        if old['protocol'] != 'afm-hle-v1' or old['dataset_sha256'] != digest(data):
+            raise ValueError('migration requires an unchanged v1 dataset')
+        if db.execute("SELECT 1 FROM sqlite_master WHERE name='judge_config'").fetchone():
+            raise ValueError('cannot migrate a run already configured for judging')
+        for attempt in db.execute('SELECT qid,status FROM attempts'):
+            image = questions[attempt['qid']].get('image')
+            if attempt['status'] == 'inflight' or (image and gateway_image(image) != image):
+                raise ValueError('already dispatched inputs would change')
+        new = dict(old, protocol='afm-hle-v2', image_policy=POLICY)
+        with db:
+            db.execute('UPDATE config SET manifest=? WHERE id=1', (encode(new).decode(),))
+            db.execute('INSERT INTO events VALUES(?,?,?,?)',
+                       (stamp(), None, None, 'migrate_v1_to_v2_images; original_manifest=' + encode(old).decode()))
+        print('Image policy upgraded; all previously dispatched payloads remain unchanged.')
 
 
 def classify(status, result, model):
@@ -240,6 +268,21 @@ def report(args):
             stats = db.execute('SELECT count(*),sum(latency_ms) FROM attempts WHERE model=?', (model,)).fetchone()
             result['models'][model] = {'items': counts, 'gateway_requests_started': stats[0],
                 'total_latency_ms': stats[1], 'completion_fraction': counts.get('done', 0)/manifest['total_questions']}
+        for model in MODELS:
+            result['models'][model]['finish_reasons'] = {r[0]:r[1] for r in db.execute(
+                "SELECT finish_reason,count(*) FROM attempts WHERE model=? AND status='done' GROUP BY finish_reason", (model,))}
+            result['models'][model]['error_codes'] = {r[0]:r[1] for r in db.execute(
+                "SELECT code,count(*) FROM attempts WHERE model=? AND code IS NOT NULL GROUP BY code", (model,))}
+            responses = [r[0] for r in db.execute("SELECT response FROM attempts WHERE model=? AND status='done'", (model,))]
+            result['models'][model]['responses_without_confidence_label'] = sum('confidence:' not in r.lower() for r in responses)
+        from .judge import report as judge_report
+        grading = judge_report(db)
+        if grading is not None:
+            result['grading'] = grading
+            result['judge_status'] = 'partial'
+            if all(grading['models'][m]['judged'] == manifest['total_questions'] for m in MODELS):
+                result['judge_status'] = 'complete'
+                result['accuracy'] = {m: grading['models'][m]['accuracy_on_judged'] for m in MODELS}
         return result
 
 
@@ -250,9 +293,11 @@ def main():
     p = sub.add_parser('prepare')
     p.add_argument('--revision', required=True)
     p.add_argument('--output', type=Path, default=Path('.private/hle.json'))
-    for cmd in ['run', 'report', 'resolve']:
+    for cmd in ['run', 'report', 'resolve', 'migrate-images']:
         p = sub.add_parser(cmd)
         p.add_argument('--db', type=Path, default=Path('.private/run.sqlite3'))
+        if cmd == 'migrate-images':
+            p.add_argument('--data', type=Path, default=Path('.private/hle.json'))
         if cmd == 'run':
             p.add_argument('--data', type=Path, default=Path('.private/hle.json'))
             p.add_argument('--endpoint', default='http://127.0.0.1:1979')
@@ -269,6 +314,7 @@ def main():
             raise SystemExit(run(args))
         elif args.command == 'prepare': prepare(args)
         elif args.command == 'resolve': resolve(args)
+        elif args.command == 'migrate-images': migrate_images(args)
         else: print(json.dumps(report(args), indent=2))
     except Exception as e:
         # Do not print raw provider errors, URLs, dataset contents, or secrets.

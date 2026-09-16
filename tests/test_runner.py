@@ -99,6 +99,16 @@ class RunnerTests(unittest.TestCase):
         q['image'] = 'https://example.com/image.png'
         with self.assertRaises(ValueError): cli.payload(q, 'afm-cloud')
 
+    def test_image_migration_preserves_completed_work(self):
+        cli.run(self.args, self.ok)
+        with cli.state(self.args.db) as db:
+            manifest=json.loads(db.execute('SELECT manifest FROM config').fetchone()[0])
+            manifest.pop('image_policy'); manifest['protocol']='afm-hle-v1'
+            with db: db.execute('UPDATE config SET manifest=?',(cli.encode(manifest).decode(),))
+        cli.migrate_images(self.args)
+        cli.run(self.args, self.ok)
+        self.assertEqual(len(self.calls),4)
+
     def test_bad_response_is_unknown(self):
         for response in [{}, {'model': 'wrong', 'choices': [{'message': {'content': 'x'}}]}]:
             self.assertEqual(cli.classify(200, response, 'afm-cloud')[0], 'unknown')

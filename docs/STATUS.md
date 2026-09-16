@@ -1,32 +1,43 @@
-# Initial execution — 2026-09-16
+# Execution status — 2026-09-16
 
-Implemented dataset preparation, pinned manifests, serial paired generation,
-SQLite checkpointing, quota/unknown-outcome pauses, explicit audited retry/skip,
-and sanitized aggregate reporting. Eleven offline tests passed on both Python
-3.9.6 and 3.14.4. Tests cover restart safety, no duplicate completed requests,
-quota stops, timeouts, changed datasets, answer isolation, image payloads, and
-exclusive run locks.
+The pinned HLE dataset is available locally: 2,500 questions, including 342 image
+questions. The working snapshot excludes binary preview/rationale fields. Five
+WebP and three GIF images were static and converted losslessly to PNG; all eight
+passed decoded-pixel equality checks. The largest payload is 3,241,554 bytes.
 
-A separate synthetic run made four successful live gateway requests: arithmetic
-and PNG image identification on each route. Both routes answered correctly.
-Latency was 1.19–1.24 seconds per request for these tiny examples; this is not an
-HLE runtime estimate. Cloud omitted the requested Explanation/Answer/Confidence
-format; Cloud Pro followed it. The reference judge's missing-confidence default
-must be disclosed when reporting calibration. Synthetic accuracy is not HLE
-accuracy. See reports/synthetic-smoke.json for aggregate transport evidence.
+## Completed pilot
 
-The project virtual environment uses Homebrew Python 3.14.4 and includes HF CLI
-1.31.0 and PyArrow 23.0.1. requirements-lock.txt records the installed dependency
-versions; install with `uv pip install -r requirements-lock.txt` to reproduce.
-The standard library runner also works without these optional data dependencies.
+50 generations and 50 independent reference-judge grades are checkpointed: the
+same 25 questions on each cloud route (1% coverage per model).
 
-Blocked dependencies:
+| Route | Judged | Correct | Pilot accuracy | Wilson 95% interval |
+| --- | ---: | ---: | ---: | ---: |
+| AFM Cloud | 25 | 0 | 0% | 0–13.3% |
+| AFM Cloud Pro | 25 | 2 | 8% | 2.2–25.0% |
 
-1. Refresh Hugging Face authentication and accept cais/hle access. Existing cached
-   credential returned 401. No HLE dataset content has been downloaded.
-2. Supply the judge LiteLLM endpoint, alias, protected credential-file path, and
-   spending cap. Recommended baseline is the reference `o3-mini-2025-01-31` judge.
-   No grading requests have been sent; the judge adapter remains a planned phase.
+This is a small partial run, not a full HLE score or evidence of a reliable model
+ranking. No model build identity is attested by Shortcuts. The grader returned
+`o3-mini-2025-01-31` for all 50 completed grades.
 
-No automatic quota reset or scheduled resume has been configured. Generation can
-begin as soon as dataset access is restored, independently of judge setup.
+All 50 generation records matched successful, delivered gateway ledger entries.
+No Apple quota or transport failure occurred in this pilot; cloud token usage
+remains unknown. Generation stopped at the chosen pilot call cap. Completed
+answers will not be repeated when the same run resumes.
+
+The judge completed 51 client attempts: 50 successful grades and one HTTP 502
+overload response. An explicit retry retained the failed attempt in history.
+The completed grades used 45,738 input and 18,133 output tokens. Their estimated
+and proxy-reported cost both total $0.130097. The failed attempt has unknown usage
+and cost, so this is not a guaranteed complete billing total. No budget cap was
+requested. No automatic client retry occurred.
+
+Twenty-three offline tests pass, including checkpoints, quota/transport stops,
+judge cost history, budget guards, immutable configurations, local environment
+parsing, image conversion, and exclusive locks. The earlier four synthetic checks
+remain separate from HLE. `.env`, raw benchmark content, responses, SQLite state,
+and the SQLite-consistent local pilot backup remain ignored and private.
+
+See reports/progress.json for machine-readable aggregate results. Remaining work:
+scale beyond the pilot in resumable batches, review grading quality, and publish
+full-run and subgroup results when sufficient coverage is available. No background
+runner or scheduled quota probe is active.

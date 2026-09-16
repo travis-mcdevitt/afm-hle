@@ -1,0 +1,105 @@
+import argparse
+import json
+from pathlib import Path
+import tempfile
+import unittest
+from afm_hle import cli, judge
+from afm_hle.config import read_env
+
+
+class JudgeTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
+        p = Path(self.tmp.name)
+        self.data = {'dataset':'synthetic','revision':'v1','questions':[
+            {'id':'a','question':'2+2?','answer':'4','image':''}]}
+        cli.private_json(p/'data.json',self.data)
+        (p/'.env').write_text('OPENAI_BASE_URL=http://localhost/v1\nOPENAI_MODEL=judge\nOPENAI_API_KEY="secret # literal"\n')
+        self.args = argparse.Namespace(db=p/'run.sqlite3',data=p/'data.json',env_file=p/'.env',
+            budget_usd=None,input_rate=1.1,output_rate=4.4,max_calls=10)
+        with cli.state(self.args.db) as db:
+            cli.initialize(db,self.data,'http://localhost:1979')
+            with db:
+                db.execute("UPDATE items SET status='done' WHERE model='afm-cloud'")
+                db.execute("INSERT INTO attempts(qid,model,status,response) VALUES('a','afm-cloud','done','Answer: 4')")
+        self.calls=[]
+
+    def good(self,*args,**kwargs):
+        self.calls.append(args)
+        grade={'extracted_final_answer':'4','reasoning':'match','correct':'yes','confidence':90,'strict':True}
+        return 200, {'x-litellm-response-cost':'0.00099'}, {'model':'judge',
+            'choices':[{'finish_reason':'stop','message':{'content':json.dumps(grade)}}],
+            'usage':{'prompt_tokens':100,'completion_tokens':200}}
+
+    def test_resume_and_cost(self):
+        self.assertEqual(judge.run(self.args,self.good),0)
+        self.assertEqual(judge.run(self.args,self.good),0)
+        self.assertEqual(len(self.calls),1)
+        self.assertNotIn('secret',json.dumps(cli.report(self.args)))
+        with cli.state(self.args.db) as db:
+            report=judge.report(db)
+        self.assertEqual(report['models']['afm-cloud']['correct'],1)
+        self.assertAlmostEqual(report['estimated_cost_usd_all_attempts'],0.00099)
+
+    def test_budget_prevents_request(self):
+        self.args.budget_usd=0.0001
+        self.assertEqual(judge.run(self.args,self.good),2)
+        self.assertEqual(self.calls,[])
+
+    def test_unknown_not_retried(self):
+        def fail(*args,**kwargs): raise TimeoutError()
+        self.assertEqual(judge.run(self.args,fail),2)
+        self.assertEqual(judge.run(self.args,self.good),2)
+        self.assertEqual(self.calls,[])
+
+    def test_invalid_grade_retains_usage(self):
+        def bad(*args,**kwargs):
+            status,headers,result=self.good(*args,**kwargs)
+            result['choices'][0]['message']['content']='{}'
+            return status,headers,result
+        self.assertEqual(judge.run(self.args,bad),2)
+        with cli.state(self.args.db) as db:
+            r=db.execute('SELECT estimated_cost_usd,raw_response FROM grades').fetchone()
+            self.assertGreater(r[0],0); self.assertIsNotNone(r[1])
+
+    def test_explicit_retry_preserves_cost_history(self):
+        def bad(*args,**kwargs):
+            status,headers,result=self.good(*args,**kwargs)
+            result['choices'][0]['message']['content']='{}'
+            return status,headers,result
+        judge.run(self.args,bad)
+        self.args.retry_attempt=1
+        judge.run(self.args,self.good)
+        with cli.state(self.args.db) as db:
+            report=judge.report(db)
+            self.assertEqual(report['archived_retry_attempts'],1)
+            self.assertAlmostEqual(report['estimated_cost_usd_all_attempts'],0.00198)
+            with self.assertRaises(ValueError): judge.retry(db,1)
+
+    def test_server_error_is_unknown_and_not_replayed(self):
+        def overload(*args,**kwargs): return 502,{}, {'error': {'message':'overloaded'}}
+        self.assertEqual(judge.run(self.args,overload),2)
+        self.assertEqual(judge.run(self.args,self.good),2)
+        with cli.state(self.args.db) as db:
+            self.assertEqual(db.execute('SELECT status FROM grades').fetchone()[0],'unknown')
+        self.assertEqual(self.calls,[])
+
+    def test_manifest_change_rejected(self):
+        judge.run(self.args,self.good)
+        self.args.input_rate=2
+        with self.assertRaises(ValueError): judge.run(self.args,self.good)
+
+    def test_dotenv_is_not_executed(self):
+        self.assertEqual(read_env(self.args.env_file)['OPENAI_API_KEY'],'secret # literal')
+        p=self.args.env_file
+        p.write_text(p.read_text().replace('secret # literal','$(touch /tmp/do-not-execute)'))
+        self.assertIn('$(touch',read_env(p)['OPENAI_API_KEY'])
+
+    def test_wilson_edge_cases(self):
+        self.assertIsNone(judge.wilson(0,0))
+        lo,hi=judge.wilson(0,4)
+        self.assertAlmostEqual(lo,0); self.assertGreater(hi,0)
+        lo,hi=judge.wilson(4,4)
+        self.assertLess(lo,1); self.assertAlmostEqual(hi,1)
+
+if __name__ == '__main__': unittest.main()

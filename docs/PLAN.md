@@ -19,7 +19,7 @@ sessions without discarding completed work.
 - Cloud usage is unavailable. Quota scope/reset are unknown; no inferred cooldown.
 - GitHub authentication works with network access; destination afm-hle did not
   exist at initial inspection.
-- HLE metadata is public, revision
+- Initial assessment (resolved in the subsequent pilot): HLE metadata is public, revision
   `5a81a4c7271a2a2a312b9a690f0c2fde837e4c29`; data are gated. The cached local HF
   credential returned HTTP 401. Download is blocked pending refreshed access.
 - Reference judge: `o3-mini-2025-01-31`. User will supply a LiteLLM route and budget.
@@ -66,3 +66,14 @@ and observed response sizes before a meaningful budget estimate can be made.
 - [HLE dataset and access conditions](https://huggingface.co/datasets/cais/hle)
 - [HLE reference evaluation](https://github.com/centerforaisafety/hle/tree/main/hle_eval)
 - Local afm-gateway README/INTEGRATION and Hollis source inspection.
+
+## Dependency resolution
+
+HF access has been restored and the complete pinned dataset downloaded: 2,500
+questions, 342 images. Binary preview/rationale fields are excluded from the
+working snapshot; the source Parquet remains in the private cache. All payloads
+validate after eight lossless static-image conversions. The largest is 3,241,554
+bytes. The reference judge is configured via ignored `.env`; the owner requested
+no spending cap. Phases 1–4 are implemented and executed; the judge adapter and
+initial grading in phase 6 are implemented. See STATUS.md and reports/progress.json
+for current measured progress, rather than the initial dependency notes above.

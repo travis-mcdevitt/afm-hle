@@ -51,3 +51,32 @@ run: use a new DB for any changed snapshot or prompt.
 CI runs only synthetic offline tests. It never obtains the Apple token, accesses
 HLE, or runs inference. Review `git diff --cached` before pushing; never force-add
 `.private/`, token files, SQLite databases, or raw model output.
+
+## Judge execution
+
+Store `OPENAI_BASE_URL`, `OPENAI_MODEL`, and `OPENAI_API_KEY` in `.env` at the
+project root. It is ignored by Git. Do not pass the key on the command line.
+The base URL should include the API prefix (typically `/v1`).
+
+```sh
+.venv/bin/python -m afm_hle.judge --no-budget-cap --input-rate 1.1 --output-rate 4.4 --max-calls 10
+```
+
+Repeat to grade only newly completed, ungraded generations. Generation and judging
+share the database lock and run sequentially. Judge errors pause grading without
+replaying the request. Inspect failed/unknown grades privately. After review, add `--retry-attempt ID`
+to explicitly authorize a retry of that generation-attempt ID; the original
+grade attempt is archived, and its known costs remain in accounting. A timeout
+may already have incurred cost. Completed grades cannot be retried. Generation
+can continue independently of failed grading.
+
+For a future budgeted evaluation, use `--budget-usd AMOUNT` instead of
+`--no-budget-cap`. This reserves a conservative input-byte/output-token estimate
+before each call and halts if any prior cost is unknown. It is a local guard at
+the supplied prices, not a billing limit enforced by the provider. For a contractual
+spend ceiling, also configure a hard limit on the proxy key. Pricing and budget
+are immutable within a grading run.
+
+The `migrate-images` command upgrades early v1 runs only if the dataset is unchanged,
+no judge configuration exists, and every already dispatched image payload remains
+identical. It records the original manifest in the private event log.

@@ -1,0 +1,111 @@
+{
+  "generated_at": "2026-09-16T20:54:53.995510+00:00",
+  "manifest": {
+    "dataset": "cais/hle",
+    "dataset_sha256": "f88ca1244d0efa571034b8a4dce562fe9063c4745702a9381079cdd1274365ef",
+    "image_policy": "inline-png-jpeg;static-webp-gif-to-rgba-png-v1",
+    "models": [
+      "afm-cloud",
+      "afm-cloud-pro"
+    ],
+    "prompt_sha256": "c4033cc15d163223811cfdc81aa98fdbae46b1f625e8d13c91590bcbbaa5302c",
+    "protocol": "afm-hle-v2",
+    "revision": "5a81a4c7271a2a2a312b9a690f0c2fde837e4c29",
+    "total_questions": 2500
+  },
+  "models": {
+    "afm-cloud": {
+      "items": {
+        "done": 25,
+        "pending": 2475
+      },
+      "gateway_requests_started": 25,
+      "total_latency_ms": 41644,
+      "completion_fraction": 0.01,
+      "finish_reasons": {
+        "stop": 25
+      },
+      "error_codes": {},
+      "responses_without_confidence_label": 19
+    },
+    "afm-cloud-pro": {
+      "items": {
+        "done": 25,
+        "pending": 2475
+      },
+      "gateway_requests_started": 25,
+      "total_latency_ms": 84047,
+      "completion_fraction": 0.01,
+      "finish_reasons": {
+        "stop": 25
+      },
+      "error_codes": {},
+      "responses_without_confidence_label": 0
+    }
+  },
+  "accuracy": null,
+  "judge_status": "partial",
+  "apple_token_usage": null,
+  "apple_remaining_quota": null,
+  "apple_reset_at": null,
+  "model_build_identity": "not_exposed_by_shortcuts",
+  "grading": {
+    "configuration": {
+      "budget_usd": null,
+      "generation_manifest_sha256": "06394ada89bd81cedf93a06e071985f45024a35af51ab3a936547f322355bf78",
+      "input_usd_per_million": 1.1,
+      "max_completion_tokens": 4096,
+      "model": "o3-mini-2025-01-31",
+      "output_usd_per_million": 4.4,
+      "prompt_sha256": "211a9a038c3762dc515729280c6e7693564da745463d27396d2c392f75c80d6e",
+      "reference_revision": "73ae974b1844c3ffa64c3f4343d9f1f259575700",
+      "schema_sha256": "f3ad3db582ee1b1452f69a8485a0226017b239c45d610b5c445128b401562136"
+    },
+    "models": {
+      "afm-cloud": {
+        "judged": 25,
+        "correct": 0,
+        "accuracy_on_judged": 0.0,
+        "wilson_95_interval": [
+          0,
+          0.13319225093904213
+        ],
+        "estimated_cost_usd": 0.0607651,
+        "calls_missing_cost_estimate": 0
+      },
+      "afm-cloud-pro": {
+        "judged": 25,
+        "correct": 2,
+        "accuracy_on_judged": 0.08,
+        "wilson_95_interval": [
+          0.022220401284848285,
+          0.24966108950394714
+        ],
+        "estimated_cost_usd": 0.0693319,
+        "calls_missing_cost_estimate": 0
+      }
+    },
+    "matched_pairs": {
+      "count": 25,
+      "both_correct": 0,
+      "cloud_only_correct": 0,
+      "pro_only_correct": 2
+    },
+    "usage_completed_grades": {
+      "prompt_tokens": 45738,
+      "completion_tokens": 18133,
+      "total_tokens": 63871
+    },
+    "returned_models": {
+      "o3-mini-2025-01-31": 50
+    },
+    "status_counts": {
+      "done": 50
+    },
+    "estimated_cost_usd_all_attempts": 0.13009700000000002,
+    "reported_cost_usd_all_attempts": 0.13009700000000002,
+    "calls_missing_usage": 1,
+    "archived_retry_attempts": 1,
+    "cost_totals_exclude_unknown_attempts": true
+  }
+}
