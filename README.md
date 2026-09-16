@@ -14,7 +14,7 @@ retained. No fallback, hidden retries, tools, or streaming.
 
 ## Status
 
-Four live synthetic checks and 23 offline tests passed. Dataset authentication and
+Four live synthetic checks and 24 offline tests passed. Dataset authentication and
 the independent judge route are configured; HLE pilot execution has begun. See [execution status](docs/STATUS.md).
 
 See [plan and feasibility](docs/PLAN.md), [methodology](docs/METHODOLOGY.md), and
@@ -54,3 +54,10 @@ The configured reference judge is `o3-mini-2025-01-31`; its current local proxy
 metadata lists $1.10/M input tokens and $4.40/M output tokens. Cost estimates use
 returned usage; proxy-reported cost is recorded separately. This run has no spend
 cap at the owner's request. Future runs may use `--budget-usd` instead.
+
+An additional `nous-glm-5.3-flash` judge can grade an isolated snapshot of the same
+responses with the same rubric. See [judge comparison operations](docs/OPERATIONS.md#comparing-an-additional-judge).
+Reference grades remain intact, and no extra Apple requests are needed.
+
+The initial Flash trial is paused on JSON-format failures after five valid grades.
+See the [comparison findings](docs/JUDGE-COMPARISON.md); the reference baseline is unchanged.

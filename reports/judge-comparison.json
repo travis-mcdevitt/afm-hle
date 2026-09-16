@@ -1,0 +1,162 @@
+{
+  "reference_judge": "o3-mini-2025-01-31",
+  "alternative_judge": "nous-glm-5.3-flash",
+  "responses_sha256": "21c6dbeb6a2e685bc988a44cd206784a7c46523b9d8ba0ffa4d8f1c4bde87314",
+  "matched_grades": 5,
+  "reference_only_grades": 45,
+  "alternative_only_grades": 0,
+  "models": {
+    "afm-cloud": {
+      "both_correct": 0,
+      "both_incorrect": 3,
+      "reference_only_correct": 0,
+      "alternative_only_correct": 0,
+      "matched": 3,
+      "correctness_agreement": 1.0,
+      "positive_agreement": null,
+      "confidence_disagreements": 0
+    },
+    "afm-cloud-pro": {
+      "both_correct": 1,
+      "both_incorrect": 1,
+      "reference_only_correct": 0,
+      "alternative_only_correct": 0,
+      "matched": 2,
+      "correctness_agreement": 1.0,
+      "positive_agreement": 1.0,
+      "confidence_disagreements": 0
+    }
+  },
+  "note": "Judge agreement is not ground-truth accuracy. This is a small pilot with few positive labels.",
+  "reference_accounting": {
+    "configuration": {
+      "budget_usd": null,
+      "generation_manifest_sha256": "06394ada89bd81cedf93a06e071985f45024a35af51ab3a936547f322355bf78",
+      "input_usd_per_million": 1.1,
+      "max_completion_tokens": 4096,
+      "model": "o3-mini-2025-01-31",
+      "output_usd_per_million": 4.4,
+      "prompt_sha256": "211a9a038c3762dc515729280c6e7693564da745463d27396d2c392f75c80d6e",
+      "reference_revision": "73ae974b1844c3ffa64c3f4343d9f1f259575700",
+      "schema_sha256": "f3ad3db582ee1b1452f69a8485a0226017b239c45d610b5c445128b401562136"
+    },
+    "models": {
+      "afm-cloud": {
+        "judged": 25,
+        "correct": 0,
+        "accuracy_on_judged": 0.0,
+        "wilson_95_interval": [
+          0,
+          0.13319225093904213
+        ],
+        "estimated_cost_usd": 0.0607651,
+        "calls_missing_cost_estimate": 0
+      },
+      "afm-cloud-pro": {
+        "judged": 25,
+        "correct": 2,
+        "accuracy_on_judged": 0.08,
+        "wilson_95_interval": [
+          0.022220401284848285,
+          0.24966108950394714
+        ],
+        "estimated_cost_usd": 0.0693319,
+        "calls_missing_cost_estimate": 0
+      }
+    },
+    "matched_pairs": {
+      "count": 25,
+      "both_correct": 0,
+      "cloud_only_correct": 0,
+      "pro_only_correct": 2
+    },
+    "usage_completed_grades": {
+      "prompt_tokens": 45738,
+      "completion_tokens": 18133,
+      "total_tokens": 63871
+    },
+    "returned_models": {
+      "o3-mini-2025-01-31": 50
+    },
+    "status_counts": {
+      "done": 50
+    },
+    "estimated_cost_usd_all_attempts": 0.13009700000000002,
+    "reported_cost_usd_all_attempts": 0.13009700000000002,
+    "calls_missing_usage": 1,
+    "archived_retry_attempts": 1,
+    "cost_totals_exclude_unknown_attempts": true,
+    "latency_completed_grades_ms": {
+      "count": 50,
+      "total": 169031,
+      "median": 3154.5,
+      "p95_nearest_rank": 6169
+    }
+  },
+  "alternative_accounting": {
+    "configuration": {
+      "budget_usd": null,
+      "generation_manifest_sha256": "06394ada89bd81cedf93a06e071985f45024a35af51ab3a936547f322355bf78",
+      "input_usd_per_million": 0.06,
+      "max_completion_tokens": 4096,
+      "model": "nous-glm-5.3-flash",
+      "output_usd_per_million": 0.2,
+      "prompt_sha256": "211a9a038c3762dc515729280c6e7693564da745463d27396d2c392f75c80d6e",
+      "reference_revision": "73ae974b1844c3ffa64c3f4343d9f1f259575700",
+      "schema_sha256": "f3ad3db582ee1b1452f69a8485a0226017b239c45d610b5c445128b401562136"
+    },
+    "models": {
+      "afm-cloud": {
+        "judged": 3,
+        "correct": 0,
+        "accuracy_on_judged": 0.0,
+        "wilson_95_interval": [
+          0,
+          0.561497031755032
+        ],
+        "estimated_cost_usd": 0.0002634,
+        "calls_missing_cost_estimate": 0
+      },
+      "afm-cloud-pro": {
+        "judged": 2,
+        "correct": 1,
+        "accuracy_on_judged": 0.5,
+        "wilson_95_interval": [
+          0.09453120573423457,
+          0.9054687942657654
+        ],
+        "estimated_cost_usd": 0.00091104,
+        "calls_missing_cost_estimate": 0
+      }
+    },
+    "matched_pairs": {
+      "count": 2,
+      "both_correct": 0,
+      "cloud_only_correct": 0,
+      "pro_only_correct": 1
+    },
+    "usage_completed_grades": {
+      "prompt_tokens": 6744,
+      "completion_tokens": 3849,
+      "total_tokens": 10593
+    },
+    "returned_models": {
+      "nous-glm-5.3-flash": 6
+    },
+    "status_counts": {
+      "done": 5,
+      "unknown": 1
+    },
+    "estimated_cost_usd_all_attempts": 0.0014607200000000002,
+    "reported_cost_usd_all_attempts": 0.001423856,
+    "calls_missing_usage": 0,
+    "archived_retry_attempts": 1,
+    "cost_totals_exclude_unknown_attempts": false,
+    "latency_completed_grades_ms": {
+      "count": 5,
+      "total": 60539,
+      "median": 6677,
+      "p95_nearest_rank": 32898
+    }
+  }
+}

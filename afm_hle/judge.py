@@ -85,6 +85,8 @@ def cost(result, headers, input_rate, output_rate):
 
 def run(args, transport=request_bearer):
     config = read_env(args.env_file)
+    if getattr(args, 'model', None): config['OPENAI_MODEL'] = args.model
+    if getattr(args, 'snapshot_from', None): snapshot(args.snapshot_from, args.db)
     data = json.loads(args.data.read_text())
     questions = {q['id']: q for q in data['questions']}
     with state(args.db) as db:
@@ -145,6 +147,31 @@ def run(args, transport=request_bearer):
                               'estimated_cost_usd': estimate}), flush=True)
             if status != 'done': return 2
         return 0
+
+
+def snapshot(source, destination):
+    """Copy generation records only into a new, generation-disabled judge DB."""
+    source, destination = Path(source), Path(destination)
+    if not source.is_file() or destination.exists():
+        raise ValueError('snapshot requires an existing source and a new destination')
+    try:
+        with state(source) as original, state(destination) as target:
+            if original.execute("SELECT 1 FROM items WHERE status='inflight'").fetchone():
+                raise ValueError('source contains an interrupted generation')
+            with target:
+                for table in ('config', 'items', 'attempts', 'events'):
+                    rows = original.execute('SELECT * FROM ' + table).fetchall()
+                    if rows:
+                        marks = ','.join('?' for _ in rows[0])
+                        target.executemany('INSERT INTO ' + table + ' VALUES(' + marks + ')',
+                                           [tuple(row) for row in rows])
+                target.execute('CREATE TABLE generation_snapshot (created TEXT, responses_sha256 TEXT)')
+                responses = [tuple(r) for r in original.execute(
+                    'SELECT id,qid,model,response FROM attempts ORDER BY id')]
+                target.execute('INSERT INTO generation_snapshot VALUES(?,?)', (stamp(), digest(responses)))
+    except Exception:
+        destination.unlink(missing_ok=True)
+        raise
 
 
 def retry(db, attempt_id):
@@ -215,6 +242,8 @@ def report(db):
 def main():
     os.umask(0o077)
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--model', help='Override the judge model without changing .env')
+    parser.add_argument('--snapshot-from', type=Path, help='Initialize a new DB from saved generations only; use once')
     parser.add_argument('--env-file', type=Path, default=Path('.env'))
     parser.add_argument('--db', type=Path, default=Path('.private/run.sqlite3'))
     parser.add_argument('--data', type=Path, default=Path('.private/hle.json'))

@@ -80,3 +80,30 @@ are immutable within a grading run.
 The `migrate-images` command upgrades early v1 runs only if the dataset is unchanged,
 no judge configuration exists, and every already dispatched image payload remains
 identical. It records the original manifest in the private event log.
+
+## Comparing an additional judge
+
+Keep `.env` unchanged and specify the new route with `--model`. Create an isolated
+judge snapshot once; this copies generation records but not reference grades and
+blocks new Apple generations in the copy. It refuses to overwrite an existing DB.
+
+```sh
+.venv/bin/python -m afm_hle.judge --model nous-glm-5.3-flash \
+  --snapshot-from .private/run.sqlite3 --db .private/glm-flash.sqlite3 \
+  --no-budget-cap --input-rate 0.06 --output-rate 0.20 --max-calls 50
+```
+
+To resume, omit `--snapshot-from`; keep all other judge settings unchanged.
+To compare the saved grades:
+
+```sh
+.venv/bin/python -m afm_hle.compare .private/run.sqlite3 .private/glm-flash.sqlite3 \
+  > reports/judge-comparison.json
+```
+
+Comparison requires identical generation manifests and saved responses, plus the
+same grading prompt, schema, and output ceiling. It reports each judge separately,
+correctness disagreements, positive agreement, and confidence differences. High
+agreement on a mostly incorrect sample does not establish judge quality. If the
+source generation run grows, preserve a reference snapshot of the original cohort
+before comparing; the comparator intentionally rejects different response sets.

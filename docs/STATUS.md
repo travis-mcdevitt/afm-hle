@@ -41,3 +41,12 @@ See reports/progress.json for machine-readable aggregate results. Remaining work
 scale beyond the pilot in resumable batches, review grading quality, and publish
 full-run and subgroup results when sufficient coverage is available. No background
 runner or scheduled quota probe is active.
+
+## Additional judge trial
+
+`nous-glm-5.3-flash` was tested against the existing saved responses with no new
+Apple calls. Five valid grades matched the reference; two attempts on the next
+answer failed JSON validation, and grading paused. Reference grades remain intact.
+See [judge comparison](JUDGE-COMPARISON.md) for the compatibility finding and
+[aggregate comparison](../reports/judge-comparison.json) for costs and agreement.
+Twenty-four offline tests now pass, including isolated snapshots and comparisons.

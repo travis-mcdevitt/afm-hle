@@ -195,6 +195,8 @@ def classify(status, result, model):
 def run(args, transport=request):
     data = json.loads(args.data.read_text())
     with state(args.db) as db:
+        if db.execute("SELECT 1 FROM sqlite_master WHERE name='generation_snapshot'").fetchone():
+            raise ValueError('judge snapshots cannot generate new answers')
         initialize(db, data, args.endpoint)
         if db.execute("SELECT 1 FROM items WHERE status IN ('unknown','paused','blocked')").fetchone():
             print('Run paused: resolve outstanding items before continuing.'); return 2

@@ -84,6 +84,30 @@ class JudgeTests(unittest.TestCase):
             self.assertEqual(db.execute('SELECT status FROM grades').fetchone()[0],'unknown')
         self.assertEqual(self.calls,[])
 
+    def test_alternative_snapshot_keeps_original_grades(self):
+        from afm_hle.compare import compare
+        judge.run(self.args,self.good)
+        original=self.args.db
+        self.args.db=original.with_name('alternative.sqlite3')
+        judge.snapshot(original,self.args.db)
+        self.args.model='other-judge'
+        judge.run(self.args,self.good)
+        result=compare(original,self.args.db)
+        self.assertEqual(result['matched_grades'],1)
+        self.assertEqual(result['models']['afm-cloud']['both_correct'],1)
+        with cli.state(original) as db:
+            self.assertEqual(json.loads(db.execute('SELECT manifest FROM judge_config').fetchone()[0])['model'],'judge')
+        with self.assertRaises(ValueError):judge.snapshot(original,self.args.db)
+        with self.assertRaises(ValueError):cli.run(self.args)
+        with cli.state(self.args.db) as db:
+            changed={'extracted_final_answer':'4','reasoning':'different verdict','correct':'no','confidence':90,'strict':True}
+            with db:db.execute('UPDATE grades SET grade=?',(json.dumps(changed),))
+        disagreement=compare(original,self.args.db)
+        self.assertEqual(disagreement['models']['afm-cloud']['reference_only_correct'],1)
+        with cli.state(self.args.db) as db:
+            with db:db.execute("UPDATE attempts SET response='changed'")
+        with self.assertRaises(ValueError):compare(original,self.args.db)
+
     def test_manifest_change_rejected(self):
         judge.run(self.args,self.good)
         self.args.input_rate=2
