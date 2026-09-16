@@ -113,6 +113,8 @@ def run(args, transport=request_bearer):
         attempts = db.execute("""SELECT a.* FROM attempts a JOIN items i ON a.qid=i.qid AND a.model=i.model
           LEFT JOIN grades g ON g.attempt_id=a.id
           WHERE a.status='done' AND i.status='done' AND g.attempt_id IS NULL ORDER BY a.id""").fetchall()
+        selected = {q['id'] for q in data['questions'][:getattr(args, 'max_samples', None)]}
+        attempts = [a for a in attempts if a['qid'] in selected and a['model'] in getattr(args, 'models', MODELS)]
         for attempt in attempts[:args.max_calls]:
             body = payload(questions[attempt['qid']], attempt['response'], config['OPENAI_MODEL'], getattr(args, 'schema_profile', 'reference'))
             # Budgeted operation reserves a deliberately conservative UTF-8 byte bound

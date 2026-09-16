@@ -130,3 +130,38 @@ Omit `--snapshot-from` when resuming. Comparison rejects different schema hashes
 by default. The opt-in above permits only the two known schema variants and
 explicitly labels the difference in the report; other schema differences still
 fail. No existing reference or GLM grades are modified.
+
+## Detached Cloud Pro campaign
+
+The existing campaign is already prepared under `.private/campaign/` with a
+frozen 400-question Pro-only plan. Run commands from the repository root:
+
+```sh
+.venv/bin/python -m afm_hle.campaign start
+.venv/bin/python -m afm_hle.campaign status
+tail -f .private/campaign/worker.log
+```
+
+Open [the live dashboard](http://127.0.0.1:1981) on the gateway Mac. Its
+`/api/status` endpoint exposes aggregate JSON. It never exposes credentials,
+questions, reference answers, or generated answer text. Logs/checkpoints remain
+private. No Codex session is required after launch.
+
+```sh
+.venv/bin/python -m afm_hle.campaign stop
+```
+
+Stop waits for the current batch to checkpoint (up to ten requests); it avoids
+cancelling an in-flight provider call. Wait for the process to exit before
+restarting. On a clean stop, `start` resumes pending work. Do not rerun `prepare`
+or change the frozen plan to resume. A duplicate worker is rejected by a lock.
+
+On a quota or ambiguous failure, the dashboard remains up in `paused` state.
+Stop the worker, inspect `.private/campaign/generation.sqlite3` and the gateway
+ledger, and follow the explicit resolution procedure above using this campaign
+DB and `--model afm-cloud-pro`. Only clear a gateway hold when ready to test
+recovery; reset times are unknown. Then `start` resumes. A crash can leave an
+`inflight` record: reconcile it before retrying because it may have consumed
+quota. Judge failures similarly need explicit review/retry in
+`.private/campaign/judging.sqlite3` with the frozen Gemini settings. No automatic
+cooldown polling or unbounded retries are performed.

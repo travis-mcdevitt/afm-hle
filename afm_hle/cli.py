@@ -194,6 +194,8 @@ def classify(status, result, model):
 
 def run(args, transport=request):
     data = json.loads(args.data.read_text())
+    models = getattr(args, 'models', MODELS)
+    if not models or any(m not in MODELS for m in models): raise ValueError('invalid models')
     with state(args.db) as db:
         if db.execute("SELECT 1 FROM sqlite_master WHERE name='generation_snapshot'").fetchone():
             raise ValueError('judge snapshots cannot generate new answers')
@@ -204,8 +206,8 @@ def run(args, transport=request):
         if status != 200 or monitor.get('holds'):
             print('Gateway unavailable or holds present; no generation attempted.'); return 2
         count = 0
-        for q in data['questions']:
-            for model in MODELS:
+        for q in data['questions'][:getattr(args, 'max_samples', None)]:
+            for model in models:
                 current = db.execute('SELECT status FROM items WHERE qid=? AND model=?', (q['id'], model)).fetchone()[0]
                 if current != 'pending':
                     continue
@@ -305,6 +307,8 @@ def main():
             p.add_argument('--endpoint', default='http://127.0.0.1:1979')
             p.add_argument('--token-file', type=Path, default=TOKEN)
             p.add_argument('--max-calls', type=int, default=10)
+            p.add_argument('--models', nargs='+', choices=MODELS, default=list(MODELS))
+            p.add_argument('--max-samples', type=int, help='Only the first N questions in the frozen order')
         if cmd == 'resolve':
             p.add_argument('--id', required=True)
             p.add_argument('--model', choices=MODELS, required=True)
@@ -312,7 +316,7 @@ def main():
     args = parser.parse_args()
     try:
         if args.command == 'run':
-            if args.max_calls < 1: parser.error('--max-calls must be positive')
+            if args.max_calls < 1 or (args.max_samples is not None and args.max_samples < 1): parser.error('limits must be positive')
             raise SystemExit(run(args))
         elif args.command == 'prepare': prepare(args)
         elif args.command == 'resolve': resolve(args)

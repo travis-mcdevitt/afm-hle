@@ -7,14 +7,17 @@ underlying model build. HLE generation and independent judging are now running; 
 
 The runner operates on the Mac hosting the gateway, using its authenticated
 loopback endpoint directly. Every generation passes through the gateway ledger.
-It sends one request at a time, alternates the two routes, and saves progress to
+It sends one request at a time across the selected routes and saves progress to
 SQLite after every answer. Completed items are not submitted again. A quota or
 uncertain outcome stops the whole run; recovery is explicit, with attempt history
 retained. No fallback, hidden retries, tools, or streaming.
 
 ## Status
 
-Four live synthetic checks and 26 offline tests passed. Dataset authentication and
+The current continuation is a detached **Cloud Pro only**, fixed 400-question
+[sampling campaign](docs/SAMPLING-PLAN.md), with a [local live dashboard](http://127.0.0.1:1981).
+
+Four live synthetic checks and 33 offline tests passed. Dataset authentication and
 the independent judge route are configured; HLE pilot execution has begun. See [execution status](docs/STATUS.md).
 
 See [plan and feasibility](docs/PLAN.md), [methodology](docs/METHODOLOGY.md), and

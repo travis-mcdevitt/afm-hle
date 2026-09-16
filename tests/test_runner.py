@@ -109,6 +109,13 @@ class RunnerTests(unittest.TestCase):
         cli.run(self.args, self.ok)
         self.assertEqual(len(self.calls),4)
 
+    def test_single_model_and_sample_cap(self):
+        self.args.models=['afm-cloud-pro']
+        self.args.max_samples=1
+        cli.run(self.args,self.ok)
+        self.assertEqual(len(self.calls),1)
+        self.assertEqual(self.calls[0]['model'],'afm-cloud-pro')
+
     def test_bad_response_is_unknown(self):
         for response in [{}, {'model': 'wrong', 'choices': [{'message': {'content': 'x'}}]}]:
             self.assertEqual(cli.classify(200, response, 'afm-cloud')[0], 'unknown')
