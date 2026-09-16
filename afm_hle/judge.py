@@ -108,7 +108,7 @@ def run(args, transport=request_bearer):
         initialize(db, config, manifest, args.budget_usd, args.input_rate, args.output_rate, getattr(args, 'schema_profile', 'reference'))
         if getattr(args, 'retry_attempt', None) is not None:
             retry(db, args.retry_attempt)
-        if db.execute("SELECT 1 FROM grades WHERE status != 'done'").fetchone():
+        if not getattr(args, 'continue_on_error', False) and db.execute("SELECT 1 FROM grades WHERE status != 'done'").fetchone():
             print('Judge paused on an unresolved attempt; no automatic replay.'); return 2
         attempts = db.execute("""SELECT a.* FROM attempts a JOIN items i ON a.qid=i.qid AND a.model=i.model
           LEFT JOIN grades g ON g.attempt_id=a.id
@@ -157,7 +157,7 @@ def run(args, transport=request_bearer):
                    json.dumps(usage) if usage is not None else None, estimate, reported, returned, attempt['id']))
             print(json.dumps({'judge_status': status, 'generation_attempt': attempt['id'],
                               'estimated_cost_usd': estimate}), flush=True)
-            if status != 'done': return 2
+            if status != 'done' and (http == 429 or not getattr(args, 'continue_on_error', False)): return 2
         return 0
 
 
@@ -261,6 +261,7 @@ def main():
     parser.add_argument('--db', type=Path, default=Path('.private/run.sqlite3'))
     parser.add_argument('--data', type=Path, default=Path('.private/hle.json'))
     parser.add_argument('--max-calls', type=int, default=10)
+    parser.add_argument('--continue-on-error', action='store_true', help='Skip saved failures; flag new failures and continue other ungraded answers. HTTP 429 still stops judging.')
     parser.add_argument('--retry-attempt', type=int, help='Explicitly retry one unresolved generation-attempt ID')
     cap = parser.add_mutually_exclusive_group(required=True)
     cap.add_argument('--no-budget-cap', action='store_true')

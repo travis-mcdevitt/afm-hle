@@ -181,3 +181,28 @@ with the campaign judging database, frozen Gemini settings, and
 `--retry-attempt ID` as described above. After resolving all failed grades, remove
 `.private/campaign/grading-deferred.json` if present and restart the worker to
 finish the backlog. Do not change the sample plan or delete grade records.
+
+### Detached backlog grading and Cloud-only continuation
+
+The Cloud-only continuation uses `.private/campaign-cloud/`, the same frozen
+400 question IDs, and port 1982. It reuses 25 Cloud pilot answers. Pro generation
+remains paused; its saved-answer grading runs in a separate detached process.
+The Pro dashboard phase describes generation, so it can say paused while the
+graded count rises. Logs are `.private/campaign/grading.log`.
+
+`afm_hle.judge --continue-on-error` skips existing failed grades and attempts each
+previously ungraded answer once. New timeouts and invalid grades remain recorded
+for explicit future retry, while the worker advances to other answers. A judge
+HTTP 429 stops judging. The call limit still bounds execution, and budget guards
+still apply. The normal judge CLI retains its stop-on-error default.
+
+```sh
+.venv/bin/python -m afm_hle.campaign status --directory .private/campaign-cloud
+# Cloud dashboard: http://127.0.0.1:1982
+# Pro generation / live grading counts: http://127.0.0.1:1981
+```
+
+To prepare a separate campaign, specify its directory, model, and unused port:
+`campaign prepare --directory .private/NEW --models afm-cloud --port 1982`.
+Never prepare over an existing campaign. `campaign start --directory ...` detaches
+its worker. Concurrent workers must use distinct database directories and ports.

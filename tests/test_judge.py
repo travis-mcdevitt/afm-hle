@@ -52,6 +52,28 @@ class JudgeTests(unittest.TestCase):
         self.assertEqual(judge.run(self.args,self.good),2)
         self.assertEqual(self.calls,[])
 
+    def test_continue_flags_timeout_and_skips_it_on_resume(self):
+        with cli.state(self.args.db) as db:
+            with db:
+                db.execute("UPDATE items SET status='done' WHERE model='afm-cloud-pro'")
+                db.execute("INSERT INTO attempts(qid,model,status,response) VALUES('a','afm-cloud-pro','done','Answer: 4')")
+        self.args.continue_on_error=True
+        attempted=[]
+        def flaky(*args,**kwargs):
+            attempted.append(1)
+            if len(attempted)==1:raise TimeoutError()
+            return self.good(*args,**kwargs)
+        self.assertEqual(judge.run(self.args,flaky),0)
+        self.assertEqual(len(attempted),2)
+        self.assertEqual(judge.run(self.args,flaky),0)
+        self.assertEqual(len(attempted),2)
+        with cli.state(self.args.db) as db:
+            self.assertEqual([r[0] for r in db.execute('SELECT status FROM grades ORDER BY attempt_id')],['unknown','done'])
+
+    def test_continue_still_stops_on_judge_rate_limit(self):
+        self.args.continue_on_error=True
+        self.assertEqual(judge.run(self.args,lambda *a,**k:(429,{},{})),2)
+
     def test_invalid_grade_retains_usage(self):
         def bad(*args,**kwargs):
             status,headers,result=self.good(*args,**kwargs)

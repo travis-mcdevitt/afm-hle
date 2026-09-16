@@ -1,0 +1,33 @@
+{
+  "automatic_quota_resume": false,
+  "automatic_retries": false,
+  "batch_calls": 10,
+  "budget_usd": null,
+  "category_counts": {
+    "Biology/Medicine": 46,
+    "Chemistry": 31,
+    "Computer Science/AI": 40,
+    "Engineering": 25,
+    "Humanities/Social Science": 29,
+    "Math": 164,
+    "Other": 32,
+    "Physics": 33
+  },
+  "created_at": "2026-09-16T21:53:05.443973+00:00",
+  "dataset_revision": "5a81a4c7271a2a2a312b9a690f0c2fde837e4c29",
+  "dataset_sha256": "f88ca1244d0efa571034b8a4dce562fe9063c4745702a9381079cdd1274365ef",
+  "image_questions": 60,
+  "input_rate": 0.75,
+  "judge_model": "nous-gemini-3.7-flash",
+  "models": [
+    "afm-cloud"
+  ],
+  "ordering": "sha256(afm-hle-v1:id)",
+  "output_rate": 3.75,
+  "population_size": 2500,
+  "port": 1982,
+  "sample_size": 400,
+  "schema_profile": "portable-boolean",
+  "selected_ids_sha256": "027862dccb10e4f47bc6936c09c9436efe65df2cf2184cf50355b40a94c9cd07",
+  "version": 1
+}

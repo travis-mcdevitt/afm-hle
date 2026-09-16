@@ -26,7 +26,7 @@ def connect(path):
     return db
 
 
-def prepare(directory, size=400, models=MODELS):
+def prepare(directory, size=400, models=MODELS, port=1981):
     directory = Path(directory).resolve()
     if (directory/'plan.json').exists(): raise ValueError('campaign already exists')
     data_path = ROOT/'.private/hle.json'
@@ -54,7 +54,7 @@ def prepare(directory, size=400, models=MODELS):
         'category_counts':{},'data_path':str(data_path),
         'judge_model':'nous-gemini-3.7-flash','schema_profile':'portable-boolean',
         'input_rate':0.75,'output_rate':3.75,'budget_usd':None,'batch_calls':10,
-        'port':1981,'automatic_retries':False,'automatic_quota_resume':False}
+        'port':port,'automatic_retries':False,'automatic_quota_resume':False}
     for q in questions[:size]:
         key=q.get('category','unknown');plan['category_counts'][key]=plan['category_counts'].get(key,0)+1
     cli.private_json(directory/'plan.json',plan)
@@ -115,7 +115,7 @@ def stats(directory):
     result['judge_inflight']=sum(r['status']=='inflight' for r in grades)
     result['judge_errors']=sum(r['status'] not in ('done','inflight') for r in grades)
     result['grading_deferred']=(directory/'grading-deferred.json').exists() or bool(result['judge_errors'] or result['judge_inflight'])
-    result['grading_failures_for_retry']=result['judge_errors']+result['judge_inflight']
+    result['grading_failures_for_retry']=result['judge_errors']
     result['grading_pending']=sum(r['status']=='done' for r in items)-sum(r['status']=='done' for r in grades)
     result['judge_usage']={k:0 for k in ['prompt_tokens','completion_tokens','reasoning_tokens']}
     for g in all_grades:
@@ -260,10 +260,11 @@ def main():
     p.add_argument('command',choices=['prepare','start','worker','status','stop'])
     p.add_argument('--directory',type=Path,default=DEFAULT)
     p.add_argument('--size',type=int,default=400)
+    p.add_argument('--port',type=int,default=1981)
     p.add_argument('--models',nargs='+',choices=MODELS,default=['afm-cloud-pro'])
     args=p.parse_args();d=args.directory.resolve()
     if args.command=='prepare':
-        plan=prepare(d,args.size,args.models)
+        plan=prepare(d,args.size,args.models,args.port)
         print(json.dumps({k:v for k,v in plan.items() if k not in ('selected_ids','data_path')}))
     elif args.command=='status':print(json.dumps(stats(d),indent=2))
     elif args.command=='worker':worker(d)
@@ -282,7 +283,7 @@ def main():
             proc=subprocess.Popen([sys.executable,'-u','-m','afm_hle.campaign','worker','--directory',str(d)],
                 cwd=ROOT,stdin=subprocess.DEVNULL,stdout=log,stderr=log,start_new_session=True,close_fds=True)
         cli.private_json(d/'process.json',{'pid':proc.pid,'started_at':cli.stamp()})
-        print(json.dumps({'detached_pid':proc.pid,'dashboard':'http://127.0.0.1:1981','log':str(d/'worker.log')}))
+        print(json.dumps({'detached_pid':proc.pid,'dashboard':'http://127.0.0.1:'+str(load_plan(d)['port']),'log':str(d/'worker.log')}))
 
 
 if __name__=='__main__':main()

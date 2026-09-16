@@ -14,10 +14,14 @@ retained. No fallback, hidden retries, tools, or streaming.
 
 ## Status
 
-The current continuation is a detached **Cloud Pro only**, fixed 400-question
+The initial continuation is a detached **Cloud Pro only**, fixed 400-question
 [sampling campaign](docs/SAMPLING-PLAN.md), with a [local live dashboard](http://127.0.0.1:1981).
 
-Four live synthetic checks and 35 offline tests passed. Dataset authentication and
+A separate **Cloud-only** campaign now uses the same sample on
+[port 1982](http://127.0.0.1:1982), while Pro is paused and its saved answers
+are graded independently.
+
+Four live synthetic checks and 37 offline tests passed. Dataset authentication and
 the independent judge route are configured; HLE pilot execution has begun. See [execution status](docs/STATUS.md).
 
 See [plan and feasibility](docs/PLAN.md), [methodology](docs/METHODOLOGY.md), and
