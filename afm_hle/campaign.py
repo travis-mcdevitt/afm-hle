@@ -199,22 +199,38 @@ def work(directory, stop, generation=cli.run, grading=judge.run):
     set_phase(directory,'stopped','Stopped between batches; rerun worker to resume.')
 
 
+def dashboard_stats(directory):
+    paths=[Path(directory).resolve(), ROOT/'.private/campaign', ROOT/'.private/campaign-cloud']
+    campaigns=[]
+    seen=set()
+    for path in paths:
+        path=path.resolve()
+        if path in seen or not (path/'plan.json').exists():continue
+        seen.add(path)
+        try:
+            item=stats(path)
+            item['grading_state']=('in progress' if item['judge_inflight'] else
+                'caught up' if item['grading_pending']==0 else
+                'failures awaiting retry' if item['grading_pending']==item['judge_errors'] else
+                'backlog awaiting grading' if item['grading_deferred'] else 'pending')
+            campaigns.append(item)
+        except (OSError, ValueError, sqlite3.Error):
+            campaigns.append({'unavailable':True})
+    return {'generated_at':cli.stamp(),'campaigns':campaigns}
+
+
 HTML='''<!doctype html><html><head><meta charset="utf-8"><title>AFM × HLE live</title><style>
-body{background:#10151d;color:#eef2f6;font:16px system-ui;max-width:1000px;margin:40px auto;padding:0 24px}h1{font-size:30px} .cards{display:flex;gap:20px;flex-wrap:wrap}.card{background:#1d2633;padding:24px;border-radius:12px;flex:1;min-width:260px}progress{width:100%;height:20px;accent-color:#6fe0c1}small,.muted{color:#abb8c9} .big{font-size:36px;font-weight:650}#phase{color:#6fe0c1}pre{white-space:pre-wrap;font:14px system-ui}a{color:#6fe0c1}</style></head><body>
-<h1>AFM × Humanity’s Last Exam</h1><p>Fixed HLE sample · <span id="phase">Connecting…</span></p><p id="detail"></p>
-<div id="cards" class="cards"></div><div class="card" style="margin-top:20px"><p id="cost"></p><p id="grading"></p><p id="usage"></p><p id="last"></p><small id="updated"></small></div>
-<p class="muted">Scores are provisional until the full sample is graded. Error bars are pointwise Wilson 95% intervals, not sequential stopping rules. Apple token usage and quota reset times are unavailable.</p>
-<p class="muted">Runs locally without an AI observer. Refreshes every 3 seconds. Apple quota and generation failures pause inference. Judge failures defer grading while generation continues; this page never retries requests.</p><a href="/api/status">Aggregate JSON</a>
+body{background:#10151d;color:#eef2f6;font:16px system-ui;max-width:1100px;margin:40px auto;padding:0 24px}.cards{display:flex;gap:20px;flex-wrap:wrap}.card{background:#1d2633;padding:24px;border-radius:12px;flex:1;min-width:320px}progress{width:100%;height:20px;accent-color:#6fe0c1}small,.muted{color:#abb8c9}.big{font-size:36px;font-weight:650}a{color:#6fe0c1}.detail{font-size:14px;min-height:40px}</style></head><body>
+<h1>AFM × Humanity’s Last Exam</h1><p id="connection">Connecting…</p><div id="cards" class="cards"></div>
+<p class="muted">Generation and grading are tracked separately. Scores use valid grades only and remain provisional. Wilson 95% intervals are pointwise, not sequential stopping rules.</p>
+<p class="muted">Apple token usage and quota reset times are unavailable. Refreshes every 3 seconds without an AI observer or inference requests.</p><a href="/api/campaigns">All campaign aggregates</a>
 <script>
 const pct=x=>x==null?'—':(100*x).toFixed(1)+'%';
-async function refresh(){try{let r=await fetch('/api/status',{cache:'no-store'});if(!r.ok)throw Error();let s=await r.json();document.getElementById('phase').textContent=s.phase;document.getElementById('detail').textContent=s.detail||'';
-document.getElementById('cards').innerHTML=Object.entries(s.models).map(([name,m])=>{let n=s.target_per_model,done=m.generation.done||0,ci=m.wilson_95_interval;return `<div class="card"><h2>${name}</h2><div class="big">${done} / ${n}</div><p>Answers saved</p><progress value="${done}" max="${n}"></progress><p>${m.judged} graded · ${m.correct} correct</p><progress value="${m.judged}" max="${n}"></progress><h2>${pct(m.accuracy_on_judged)}</h2><small>95% interval ${ci?ci.map(pct).join(' – '):'—'} · denominator: graded answers</small></div>`}).join('');
-document.getElementById('cost').textContent='Judge: '+s.judge_model+' · known cost $'+s.judge_known_cost_usd.toFixed(4)+' · unknown-cost attempts '+s.judge_unknown_cost_attempts;
-document.getElementById('grading').textContent='Grading: '+(s.grading_deferred?'deferred — ':'active — ')+s.grading_failures_for_retry+' failures flagged for retry · '+s.grading_pending+' answers awaiting valid grades';
-document.getElementById('usage').textContent='Judge tokens — input '+s.judge_usage.prompt_tokens.toLocaleString()+', completion '+s.judge_usage.completion_tokens.toLocaleString()+', reasoning '+s.judge_usage.reasoning_tokens.toLocaleString();
-document.getElementById('last').textContent=s.last_generation?'Last generation: '+s.last_generation.model+' · '+s.last_generation.status:'';
-document.getElementById('updated').textContent='Updated '+new Date(s.generated_at).toLocaleTimeString()+' · sample '+s.target_per_model+' of '+s.population_size;
-}catch(e){document.getElementById('phase').textContent='Disconnected — check the local process/log';}}refresh();setInterval(refresh,3000);
+const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function refresh(){try{const r=await fetch('/api/campaigns',{cache:'no-store'});if(!r.ok)throw Error();const data=await r.json();
+document.getElementById('cards').innerHTML=data.campaigns.map(s=>s.unavailable?'<div class="card">Campaign temporarily unavailable</div>':Object.entries(s.models).map(([name,m])=>{const n=s.target_per_model,done=m.generation.done||0,ci=m.wilson_95_interval;return `<div class="card"><h2>${esc(name)}</h2><p>Generation: <strong>${esc(s.phase==='grading'?'between batches':s.phase)}</strong></p><p class="detail">${esc(s.detail||'')}</p><div class="big">${done} / ${n}</div><p>Answers saved</p><progress value="${done}" max="${n}"></progress><p>Grading: <strong>${esc(s.grading_state)}</strong></p><p>${m.judged} valid grades · ${s.judge_inflight} in progress · ${s.judge_errors} failures</p><progress value="${m.judged}" max="${n}"></progress><p>${s.grading_pending} answers awaiting valid grades</p><h2>${pct(m.accuracy_on_judged)} · ${m.correct} correct</h2><small>95% interval ${ci?ci.map(pct).join(' – '):'—'} · denominator ${m.judged}</small><p>Judge cost $${s.judge_known_cost_usd.toFixed(4)} · ${s.judge_unknown_cost_attempts} unknown-cost attempts</p><small>${esc(s.judge_model)}<br>Judge tokens: input ${s.judge_usage.prompt_tokens.toLocaleString()} · completion ${s.judge_usage.completion_tokens.toLocaleString()} · reasoning ${s.judge_usage.reasoning_tokens.toLocaleString()}</small></div>`}).join('')).join('');
+document.getElementById('connection').textContent='Live · updated '+new Date(data.generated_at).toLocaleTimeString();
+}catch(e){document.getElementById('connection').textContent='Disconnected — check local process';}}refresh();setInterval(refresh,3000);
 </script></body></html>'''
 
 
@@ -226,10 +242,10 @@ def worker(directory):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self,*args): pass
         def do_GET(self):
-            if self.path not in ('/','/api/status'):
+            if self.path not in ('/','/api/status','/api/campaigns'):
                 self.send_error(404);return
             try:
-                body=HTML.encode() if self.path=='/' else json.dumps(stats(directory)).encode()
+                body=HTML.encode() if self.path=='/' else json.dumps(dashboard_stats(directory) if self.path=='/api/campaigns' else stats(directory)).encode()
                 self.send_response(200);self.send_header('Content-Type','text/html; charset=utf-8' if self.path=='/' else 'application/json')
                 self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(body)))
                 self.end_headers();self.wfile.write(body)

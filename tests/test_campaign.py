@@ -64,6 +64,14 @@ class CampaignTests(unittest.TestCase):
         with campaign.connect(directory/'generation.sqlite3') as db:
             self.assertEqual([r[0] for r in db.execute('SELECT DISTINCT model FROM attempts')],['afm-cloud-pro'])
 
+    def test_dashboard_includes_distinct_cloud_campaign(self):
+        campaign.prepare(self.root/'.private/campaign-cloud',1,['afm-cloud'],1982)
+        result=campaign.dashboard_stats(self.directory)
+        self.assertEqual(len(result['campaigns']),2)
+        self.assertEqual(result['campaigns'][1]['models_requested'],['afm-cloud'])
+        self.assertEqual(result['campaigns'][1]['grading_state'],'caught up')
+        self.assertNotIn('selected_ids',json.dumps(result))
+
     def test_failure_stops_without_retries(self):
         def failure(args):self.calls.append('failure');return 2
         campaign.work(self.directory,threading.Event(),failure,self.grading)

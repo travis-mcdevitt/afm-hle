@@ -206,3 +206,8 @@ To prepare a separate campaign, specify its directory, model, and unused port:
 `campaign prepare --directory .private/NEW --models afm-cloud --port 1982`.
 Never prepare over an existing campaign. `campaign start --directory ...` detaches
 its worker. Concurrent workers must use distinct database directories and ports.
+
+The dashboard at port 1981 now shows both Pro and standard Cloud campaigns,
+with separate generation phase, grading status, counts, failures, and costs.
+`/api/campaigns` returns both aggregates; `/api/status` retains its original
+single-campaign response. Refresh an already-open page to load the new layout.
