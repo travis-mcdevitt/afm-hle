@@ -77,3 +77,35 @@ bytes. The reference judge is configured via ignored `.env`; the owner requested
 no spending cap. Phases 1–4 are implemented and executed; the judge adapter and
 initial grading in phase 6 are implemented. See STATUS.md and reports/progress.json
 for current measured progress, rather than the initial dependency notes above.
+
+## Next step: calibrate latency-based reasoning estimates
+
+Planned, not yet executed: after quota recovery, run a separate synthetic
+calibration through afm-gateway for Cloud and Cloud Pro independently. These
+requests consume allowance but must stay outside the frozen HLE sample and its
+accuracy denominator.
+
+1. Repeat a minimal prompt such as `Reply exactly "TEST_OK"` to estimate baseline
+   latency and its variability. This is an operational baseline, not proof that
+   the model performed no hidden reasoning.
+2. Interleave low-reasoning requests targeting several output lengths. Record
+   actual returned text length, request latency, input size, model route, and
+   errors. Use native token counts if exposed; otherwise label tokenizer/count
+   proxies explicitly. The current Shortcuts route is nonstreaming: estimate
+   visible-output throughput by fitting latency against output length. If a
+   future route exposes streaming, capture TTFT and inter-token timing directly.
+3. Control or match input length and modality, including image processing, when
+   comparing with HLE. Repeat measurements to quantify queueing and overhead
+   variability; keep calibration timing close to benchmark execution.
+4. Estimate residual time as HLE latency minus fitted overhead, input-processing
+   time, and visible-output time. Multiply residual time by a range of assumed
+   reasoning token rates. Equality between reasoning and visible-output TPS is
+   an unverified assumption, not a measurement. Negative/noisy residuals indicate
+   model-fit limitations, not evidence of negative or absent reasoning tokens.
+5. Report sensitivity ranges and assumptions separately from measured usage and
+   quota accounting. Never populate measured reasoning-token fields with these
+   estimates or present residual latency as confirmed reasoning time. Validate
+   against native reasoning usage if Apple exposes it in the future.
+
+Predefine a small request budget per route before running this experiment. Do
+not launch calibration or quota probes merely because this next step is recorded.
