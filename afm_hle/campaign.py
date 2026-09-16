@@ -163,15 +163,18 @@ def work(directory, stop, generation=cli.run, grading=judge.run):
         max_calls=plan['batch_calls'],max_samples=plan['sample_size'],models=plan['models'],retry_attempt=None)
     while not stop.is_set():
         s=stats(directory)
-        if any(any(v for k,v in m['generation'].items() if k in ('unknown','paused','blocked','inflight','skipped')) for m in s['models'].values()):
+        if any(any(v for k,v in m['generation'].items() if k in ('unknown','paused','blocked','inflight')) for m in s['models'].values()):
             set_phase(directory,'paused','Generation requires explicit resolution; no retry performed.');return
         generated=sum(m['generation'].get('done',0) for m in s['models'].values())
         graded=sum(m['judged'] for m in s['models'].values())
         target=plan['sample_size']*len(plan['models'])
+        skipped=sum(m['generation'].get('skipped',0) for m in s['models'].values())
+        if skipped and generated+skipped==target and graded==generated:
+            set_phase(directory,'finished_with_gaps','Available answers graded; explicitly skipped questions remain coverage gaps.');return
         if generated==target and graded==target:
             set_phase(directory,'complete','Fixed sample completed.');return
-        if generated==target and s['grading_deferred']:
-            set_phase(directory,'generation_complete_grading_pending','All answers saved. Grading failures and backlog await explicit retry.');return
+        if generated+skipped==target and s['grading_deferred']:
+            set_phase(directory,'generation_complete_grading_pending','Generation exhausted; check coverage gaps. Grading failures and backlog await explicit retry.');return
         # A judge failure defers grading for this campaign; it cannot block generation.
         if graded < generated and not s['grading_deferred']:
             sync(gen.db,grade.db)
@@ -228,7 +231,7 @@ body{background:#10151d;color:#eef2f6;font:16px system-ui;max-width:1100px;margi
 const pct=x=>x==null?'—':(100*x).toFixed(1)+'%';
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function refresh(){try{const r=await fetch('/api/campaigns',{cache:'no-store'});if(!r.ok)throw Error();const data=await r.json();
-document.getElementById('cards').innerHTML=data.campaigns.map(s=>s.unavailable?'<div class="card">Campaign temporarily unavailable</div>':Object.entries(s.models).map(([name,m])=>{const n=s.target_per_model,done=m.generation.done||0,ci=m.wilson_95_interval;return `<div class="card"><h2>${esc(name)}</h2><p>Generation: <strong>${esc(s.phase==='grading'?'between batches':s.phase)}</strong></p><p class="detail">${esc(s.detail||'')}</p><div class="big">${done} / ${n}</div><p>Answers saved</p><progress value="${done}" max="${n}"></progress><p>Grading: <strong>${esc(s.grading_state)}</strong></p><p>${m.judged} valid grades · ${s.judge_inflight} in progress · ${s.judge_errors} failures</p><progress value="${m.judged}" max="${n}"></progress><p>${s.grading_pending} answers awaiting valid grades</p><h2>${pct(m.accuracy_on_judged)} · ${m.correct} correct</h2><small>95% interval ${ci?ci.map(pct).join(' – '):'—'} · denominator ${m.judged}</small><p>Judge cost $${s.judge_known_cost_usd.toFixed(4)} · ${s.judge_unknown_cost_attempts} unknown-cost attempts</p><small>${esc(s.judge_model)}<br>Judge tokens: input ${s.judge_usage.prompt_tokens.toLocaleString()} · completion ${s.judge_usage.completion_tokens.toLocaleString()} · reasoning ${s.judge_usage.reasoning_tokens.toLocaleString()}</small></div>`}).join('')).join('');
+document.getElementById('cards').innerHTML=data.campaigns.map(s=>s.unavailable?'<div class="card">Campaign temporarily unavailable</div>':Object.entries(s.models).map(([name,m])=>{const n=s.target_per_model,done=m.generation.done||0,ci=m.wilson_95_interval;return `<div class="card"><h2>${esc(name)}</h2><p>Generation: <strong>${esc(s.phase==='grading'?'between batches':s.phase)}</strong></p><p class="detail">${esc(s.detail||'')}</p><div class="big">${done} / ${n}</div><p>Answers saved · ${m.generation.skipped||0} coverage gaps</p><progress value="${done}" max="${n}"></progress><p>Grading: <strong>${esc(s.grading_state)}</strong></p><p>${m.judged} valid grades · ${s.judge_inflight} in progress · ${s.judge_errors} failures</p><progress value="${m.judged}" max="${n}"></progress><p>${s.grading_pending} answers awaiting valid grades</p><h2>${pct(m.accuracy_on_judged)} · ${m.correct} correct</h2><small>95% interval ${ci?ci.map(pct).join(' – '):'—'} · denominator ${m.judged}</small><p>Judge cost $${s.judge_known_cost_usd.toFixed(4)} · ${s.judge_unknown_cost_attempts} unknown-cost attempts</p><small>${esc(s.judge_model)}<br>Judge tokens: input ${s.judge_usage.prompt_tokens.toLocaleString()} · completion ${s.judge_usage.completion_tokens.toLocaleString()} · reasoning ${s.judge_usage.reasoning_tokens.toLocaleString()}</small></div>`}).join('')).join('');
 document.getElementById('connection').textContent='Live · updated '+new Date(data.generated_at).toLocaleTimeString();
 }catch(e){document.getElementById('connection').textContent='Disconnected — check local process';}}refresh();setInterval(refresh,3000);
 </script></body></html>'''

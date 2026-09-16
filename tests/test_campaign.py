@@ -113,6 +113,27 @@ class CampaignTests(unittest.TestCase):
         with campaign.connect(self.directory/'judging.sqlite3') as db:
             self.assertEqual(db.execute('SELECT raw_response FROM grades').fetchone()[0],'preserved failure')
 
+    def test_explicit_gap_does_not_block_next_question(self):
+        directory=self.root/'.private/gap'
+        campaign.prepare(directory,2,['afm-cloud'])
+        first,second=self.data['questions'][:2]
+        with cli.state(directory/'generation.sqlite3') as db:
+            with db:
+                db.execute("UPDATE items SET status='skipped' WHERE qid=? AND model='afm-cloud'",(first['id'],))
+                db.execute("INSERT INTO attempts(qid,model,status,code) VALUES(?,'afm-cloud','unknown','shortcut_timeout')",(first['id'],))
+        def remaining(args):
+            with cli.state(args.db) as db:
+                with db:
+                    db.execute("UPDATE items SET status='done' WHERE qid=? AND model='afm-cloud'",(second['id'],))
+                    db.execute("INSERT INTO attempts(qid,model,status,response) VALUES(?,'afm-cloud','done','saved')",(second['id'],))
+            return 0
+        campaign.work(directory,threading.Event(),remaining,self.grading)
+        result=campaign.stats(directory)
+        self.assertEqual(result['phase'],'finished_with_gaps')
+        self.assertEqual(result['models']['afm-cloud']['generation'],{'skipped':1,'done':1})
+        with campaign.connect(directory/'generation.sqlite3') as db:
+            self.assertEqual(db.execute("SELECT count(*) FROM attempts WHERE code='shortcut_timeout'").fetchone()[0],1)
+
     def test_plan_tampering_rejected(self):
         path=self.directory/'plan.json';data=json.loads(path.read_text());data['sample_size']=2;cli.private_json(path,data)
         with self.assertRaises(ValueError):campaign.stats(self.directory)

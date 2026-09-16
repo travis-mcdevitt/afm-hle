@@ -211,3 +211,14 @@ The dashboard at port 1981 now shows both Pro and standard Cloud campaigns,
 with separate generation phase, grading status, counts, failures, and costs.
 `/api/campaigns` returns both aggregates; `/api/status` retains its original
 single-campaign response. Refresh an already-open page to load the new layout.
+
+### Explicit coverage gaps
+
+A user-authorized `resolve --action skip` preserves every attempt and records an
+explicit coverage gap. The campaign proceeds to the next pending question in the
+frozen sample without replacement. The dashboard displays gap counts. Exhausting
+the sample with gaps produces `finished_with_gaps` when all available answers are
+graded, rather than claiming a complete evaluation. Accuracy on graded answers
+must be reported alongside coverage. On September 16, one Cloud item was deferred
+after three 120-second Shortcuts timeouts, and Shortcuts was restarted before
+continuing. All three attempts remain in the private ledger.
