@@ -1,0 +1,48 @@
+# AFM × Humanity’s Last Exam
+
+A public, resumable evaluation of Apple's **AFM 3 Cloud** and **AFM 3 Cloud Pro**
+through the `afm-cloud` and `afm-cloud-pro` Shortcuts routes in `afm-gateway`.
+Model family names describe the intended targets; Shortcuts does not attest the
+underlying model build. No HLE accuracy result is available yet.
+
+The runner operates on the Mac hosting the gateway, using its authenticated
+loopback endpoint directly. Every generation passes through the gateway ledger.
+It sends one request at a time, alternates the two routes, and saves progress to
+SQLite after every answer. Completed items are not submitted again. A quota or
+uncertain outcome stops the whole run; recovery is explicit, with attempt history
+retained. No fallback, hidden retries, tools, or streaming.
+
+## Status
+
+Four live synthetic checks passed; 11 offline tests passed. HLE generation awaits
+refreshed dataset authentication. See [execution status](docs/STATUS.md).
+
+See [plan and feasibility](docs/PLAN.md), [methodology](docs/METHODOLOGY.md), and
+[operations](docs/OPERATIONS.md). Initial prerequisites: authenticated access to
+`cais/hle`, an active Mac GUI session with the gateway/Shortcuts installed, and a
+separately configured judge to produce accuracy metrics.
+
+Generation uses only Python's standard library (Python 3.9+). Downloading the
+pinned dataset needs `huggingface-hub` and `pyarrow`; use Python 3.11+ for a fresh
+environment and current dependency wheels. This is a macOS/Linux CLI (`fcntl`).
+
+```sh
+uv venv --python 3.11
+uv pip install -e '.[data]'
+# Authenticate with Hugging Face and accept cais/hle access first.
+.venv/bin/afm-hle prepare --revision 5a81a4c7271a2a2a312b9a690f0c2fde837e4c29
+.venv/bin/afm-hle run --max-calls 10
+.venv/bin/afm-hle report > reports/progress.json
+python3 -m unittest discover -s tests -v
+```
+
+Data, images, reference answers, generated answers, and checkpoints stay under
+ignored `.private/`. Public reports contain aggregate progress, not question or
+answer text. Credentials are loaded from protected files at runtime. The default
+is `~/Library/Application Support/afm-gateway/gateway.token`.
+
+Cloud token consumption, account-wide remaining quota, and reset times are
+**unknown**, never zero. Request counts measure this runner's gateway requests,
+not confirmed Apple inference counts. Other uses of the Apple account can share
+its limits. No completion-date estimate is justified until quota behavior and
+representative latency have been observed.

@@ -1,0 +1,39 @@
+{
+  "generated_at": "2026-09-16T20:39:35.026927+00:00",
+  "manifest": {
+    "dataset": "synthetic-smoke",
+    "dataset_sha256": "b75088bda3c3627111e4394c1f458c0399552bf63d0d1d2f24ab6a7374a4b071",
+    "models": [
+      "afm-cloud",
+      "afm-cloud-pro"
+    ],
+    "prompt_sha256": "c4033cc15d163223811cfdc81aa98fdbae46b1f625e8d13c91590bcbbaa5302c",
+    "protocol": "afm-hle-v1",
+    "revision": "v1",
+    "total_questions": 2
+  },
+  "models": {
+    "afm-cloud": {
+      "items": {
+        "done": 2
+      },
+      "gateway_requests_started": 2,
+      "total_latency_ms": 2397,
+      "completion_fraction": 1.0
+    },
+    "afm-cloud-pro": {
+      "items": {
+        "done": 2
+      },
+      "gateway_requests_started": 2,
+      "total_latency_ms": 2450,
+      "completion_fraction": 1.0
+    }
+  },
+  "accuracy": null,
+  "judge_status": "not_configured",
+  "apple_token_usage": null,
+  "apple_remaining_quota": null,
+  "apple_reset_at": null,
+  "model_build_identity": "not_exposed_by_shortcuts"
+}

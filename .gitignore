@@ -1,0 +1,9 @@
+.private/
+.venv/
+__pycache__/
+*.pyc
+*.sqlite*
+.env*
+*.token
+.DS_Store
+*.egg-info/
