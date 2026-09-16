@@ -14,7 +14,7 @@ retained. No fallback, hidden retries, tools, or streaming.
 
 ## Status
 
-Four live synthetic checks and 24 offline tests passed. Dataset authentication and
+Four live synthetic checks and 26 offline tests passed. Dataset authentication and
 the independent judge route are configured; HLE pilot execution has begun. See [execution status](docs/STATUS.md).
 
 See [plan and feasibility](docs/PLAN.md), [methodology](docs/METHODOLOGY.md), and
@@ -61,3 +61,8 @@ Reference grades remain intact, and no extra Apple requests are needed.
 
 The initial Flash trial is paused on JSON-format failures after five valid grades.
 See the [comparison findings](docs/JUDGE-COMPARISON.md); the reference baseline is unchanged.
+
+The [Gemini trial](docs/GEMINI-TRIAL.md) completed all 50 saved answers with an
+explicit schema compatibility profile: 49/50 correctness agreement with the
+reference, and about $0.073 total known cost including synthetic checks.
+The reference grader remains unchanged.

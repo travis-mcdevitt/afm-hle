@@ -107,3 +107,26 @@ correctness disagreements, positive agreement, and confidence differences. High
 agreement on a mostly incorrect sample does not establish judge quality. If the
 source generation run grows, preserve a reference snapshot of the original cohort
 before comparing; the comparator intentionally rejects different response sets.
+
+## Gemini schema compatibility
+
+The Nous Gemini route accepted a minimal JSON schema but returned empty objects
+for the reference schema's boolean `enum: [true]`. A synthetic check succeeded
+when that API-only enum was removed. The `portable-boolean` profile makes exactly
+that change; local validation still requires `strict is True` and all other
+reference fields. It does not change the judge prompt or correctness rubric.
+The profile and schema hash are frozen in the new judge database.
+
+```sh
+.venv/bin/python -m afm_hle.judge --model nous-gemini-3.7-flash \
+  --schema-profile portable-boolean \
+  --snapshot-from .private/run.sqlite3 --db .private/gemini-flash.sqlite3 \
+  --no-budget-cap --input-rate 0.75 --output-rate 3.75 --max-calls 50
+.venv/bin/python -m afm_hle.compare .private/run.sqlite3 .private/gemini-flash.sqlite3 \
+  --allow-portable-boolean > reports/gemini-comparison.json
+```
+
+Omit `--snapshot-from` when resuming. Comparison rejects different schema hashes
+by default. The opt-in above permits only the two known schema variants and
+explicitly labels the difference in the report; other schema differences still
+fail. No existing reference or GLM grades are modified.

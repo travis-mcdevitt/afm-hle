@@ -5,7 +5,7 @@ import math
 import statistics
 from pathlib import Path
 from .cli import state, digest, MODELS
-from .judge import report
+from .judge import report, schema_for
 
 
 def load(path):
@@ -27,14 +27,19 @@ def load(path):
         return manifest, config, digest(responses), grades, accounting
 
 
-def compare(reference, alternative):
+def compare(reference, alternative, allow_portable_boolean=False):
     a, b = load(reference), load(alternative)
     if a[0] != b[0] or a[2] != b[2]:
         raise ValueError('judges did not receive identical saved generations')
-    for key in ('prompt_sha256', 'schema_sha256', 'max_completion_tokens'):
+    for key in ('prompt_sha256', 'max_completion_tokens'):
         if a[1][key] != b[1][key]: raise ValueError('grading protocol differs')
+    schema_differs = a[1]['schema_sha256'] != b[1]['schema_sha256']
+    if schema_differs:
+        known = {digest(schema_for(p)) for p in ('reference','portable-boolean')}
+        if not allow_portable_boolean or {a[1]['schema_sha256'],b[1]['schema_sha256']} != known:
+            raise ValueError('grading schemas differ; explicit supported-variant comparison required')
     common = a[3].keys() & b[3].keys()
-    result = {'reference_judge':a[1]['model'], 'alternative_judge':b[1]['model'],
+    result = {'schema_variation': 'API boolean enum omitted; identical local validation' if schema_differs else None, 'reference_judge':a[1]['model'], 'alternative_judge':b[1]['model'],
         'responses_sha256':a[2], 'matched_grades':len(common),
         'reference_only_grades':len(a[3].keys()-b[3].keys()),
         'alternative_only_grades':len(b[3].keys()-a[3].keys()), 'models':{},
@@ -61,8 +66,9 @@ def compare(reference, alternative):
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('reference',type=Path);p.add_argument('alternative',type=Path)
+    p.add_argument('--allow-portable-boolean',action='store_true')
     args=p.parse_args()
-    try: print(json.dumps(compare(args.reference,args.alternative),indent=2))
+    try: print(json.dumps(compare(args.reference,args.alternative,args.allow_portable_boolean),indent=2))
     except Exception as e:
         print('Comparison failed: '+type(e).__name__);raise SystemExit(1)
 

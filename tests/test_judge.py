@@ -108,6 +108,29 @@ class JudgeTests(unittest.TestCase):
             with db:db.execute("UPDATE attempts SET response='changed'")
         with self.assertRaises(ValueError):compare(original,self.args.db)
 
+    def test_portable_boolean_retains_strict_local_validation(self):
+        schema=judge.schema_for('portable-boolean')
+        self.assertEqual(schema['properties']['strict'],{'type':'boolean'})
+        self.assertEqual(judge.SCHEMA['properties']['strict']['enum'],[True])
+        _,_,result=self.good()
+        grade=json.loads(result['choices'][0]['message']['content'])
+        grade['strict']=False
+        result['choices'][0]['message']['content']=json.dumps(grade)
+        with self.assertRaises(ValueError):judge.validate(result)
+
+    def test_schema_comparison_requires_explicit_opt_in(self):
+        from afm_hle.compare import compare
+        judge.run(self.args,self.good)
+        original=self.args.db
+        self.args.db=original.with_name('portable.sqlite3')
+        judge.snapshot(original,self.args.db)
+        self.args.schema_profile='portable-boolean'
+        judge.run(self.args,self.good)
+        with self.assertRaises(ValueError):compare(original,self.args.db)
+        self.assertIsNotNone(compare(original,self.args.db,True)['schema_variation'])
+        self.args.schema_profile='reference'
+        with self.assertRaises(ValueError):judge.run(self.args,self.good)
+
     def test_manifest_change_rejected(self):
         judge.run(self.args,self.good)
         self.args.input_rate=2

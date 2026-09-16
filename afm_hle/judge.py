@@ -20,12 +20,21 @@ SCHEMA = {'type': 'object', 'properties': {
     'additionalProperties': False}
 
 
-def payload(question, response, model):
+def schema_for(profile='reference'):
+    schema = json.loads(json.dumps(SCHEMA))
+    if profile == 'portable-boolean':
+        schema['properties']['strict'].pop('enum')
+    elif profile != 'reference':
+        raise ValueError('unknown schema profile')
+    return schema
+
+
+def payload(question, response, model, schema_profile='reference'):
     return {'model': model, 'max_completion_tokens': 4096,
         'messages': [{'role': 'user', 'content': PROMPT.format(
             question=question['question'], correct_answer=question['answer'], response=response)}],
         'response_format': {'type': 'json_schema', 'json_schema': {
-            'name': 'ExtractedAnswer', 'strict': True, 'schema': SCHEMA}}}
+            'name': 'ExtractedAnswer', 'strict': True, 'schema': schema_for(schema_profile)}}}
 
 
 def validate(result):
@@ -44,7 +53,7 @@ def validate(result):
     return grade
 
 
-def initialize(db, config, manifest, budget, input_rate, output_rate):
+def initialize(db, config, manifest, budget, input_rate, output_rate, schema_profile='reference'):
     db.executescript('''
       CREATE TABLE IF NOT EXISTS judge_config (id INTEGER PRIMARY KEY, manifest TEXT);
       CREATE TABLE IF NOT EXISTS grades (attempt_id INTEGER PRIMARY KEY, status TEXT,
@@ -56,9 +65,10 @@ def initialize(db, config, manifest, budget, input_rate, output_rate):
     ''')
     spec = {'model': config['OPENAI_MODEL'], 'endpoint': config['OPENAI_BASE_URL'],
             'generation_manifest_sha256': digest(manifest), 'prompt_sha256': digest(PROMPT),
-            'schema_sha256': digest(SCHEMA), 'reference_revision': REFERENCE_REVISION,
+            'schema_sha256': digest(schema_for(schema_profile)), 'reference_revision': REFERENCE_REVISION,
             'max_completion_tokens': 4096, 'budget_usd': budget,
             'input_usd_per_million': input_rate, 'output_usd_per_million': output_rate}
+    if schema_profile != 'reference': spec['schema_profile'] = schema_profile
     serialized = encode(spec).decode()
     old = db.execute('SELECT manifest FROM judge_config').fetchone()
     if old and old[0] != serialized:
@@ -95,7 +105,7 @@ def run(args, transport=request_bearer):
         manifest = json.loads(row[0])
         if digest(data) != manifest['dataset_sha256']:
             raise ValueError('dataset does not match generation manifest')
-        initialize(db, config, manifest, args.budget_usd, args.input_rate, args.output_rate)
+        initialize(db, config, manifest, args.budget_usd, args.input_rate, args.output_rate, getattr(args, 'schema_profile', 'reference'))
         if getattr(args, 'retry_attempt', None) is not None:
             retry(db, args.retry_attempt)
         if db.execute("SELECT 1 FROM grades WHERE status != 'done'").fetchone():
@@ -104,7 +114,7 @@ def run(args, transport=request_bearer):
           LEFT JOIN grades g ON g.attempt_id=a.id
           WHERE a.status='done' AND i.status='done' AND g.attempt_id IS NULL ORDER BY a.id""").fetchall()
         for attempt in attempts[:args.max_calls]:
-            body = payload(questions[attempt['qid']], attempt['response'], config['OPENAI_MODEL'])
+            body = payload(questions[attempt['qid']], attempt['response'], config['OPENAI_MODEL'], getattr(args, 'schema_profile', 'reference'))
             # Budgeted operation reserves a deliberately conservative UTF-8 byte bound
             # plus chat/schema framing, and all 4096 output tokens. No cap was requested
             # for the initial run, but the guard is available for future evaluations.
@@ -242,6 +252,7 @@ def report(db):
 def main():
     os.umask(0o077)
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--schema-profile', choices=['reference','portable-boolean'], default='reference')
     parser.add_argument('--model', help='Override the judge model without changing .env')
     parser.add_argument('--snapshot-from', type=Path, help='Initialize a new DB from saved generations only; use once')
     parser.add_argument('--env-file', type=Path, default=Path('.env'))

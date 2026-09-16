@@ -50,3 +50,12 @@ answer failed JSON validation, and grading paused. Reference grades remain intac
 See [judge comparison](JUDGE-COMPARISON.md) for the compatibility finding and
 [aggregate comparison](../reports/judge-comparison.json) for costs and agreement.
 Twenty-four offline tests now pass, including isolated snapshots and comparisons.
+
+## Gemini trial completed
+
+`nous-gemini-3.7-flash` graded all 50 saved answers with an explicitly recorded
+API schema variant (boolean enum omitted; identical local validation). It agreed
+with o3-mini on 49/50 correctness labels and all confidence values. See the
+[Gemini trial](GEMINI-TRIAL.md) and [aggregate comparison](../reports/gemini-comparison.json).
+No additional Apple calls were made; the reference baseline remains unchanged.
+Twenty-six offline tests pass.
