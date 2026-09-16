@@ -70,6 +70,41 @@ class CampaignTests(unittest.TestCase):
         self.assertEqual(self.calls,['failure'])
         self.assertEqual(campaign.stats(self.directory)['phase'],'paused')
 
+    def test_judge_timeout_does_not_pause_generation(self):
+        def timeout(args):
+            self.calls.append('judge-timeout')
+            raise TimeoutError()
+        campaign.work(self.directory,threading.Event(),self.generation,timeout)
+        result=campaign.stats(self.directory)
+        self.assertEqual(result['phase'],'generation_complete_grading_pending')
+        self.assertTrue(result['grading_deferred'])
+        self.assertEqual(self.calls,['generation','judge-timeout'])
+        self.assertEqual(result['grading_pending'],2)
+
+    def test_existing_grade_failure_allows_remaining_generation(self):
+        q=self.data['questions'][0]
+        with cli.state(self.directory/'generation.sqlite3') as db:
+            with db:
+                db.execute("UPDATE items SET status='done' WHERE qid=? AND model='afm-cloud-pro'",(q['id'],))
+                ident=db.execute("INSERT INTO attempts(qid,model,status,response) VALUES(?,'afm-cloud-pro','done','saved')",(q['id'],)).lastrowid
+        campaign.sync(self.directory/'generation.sqlite3',self.directory/'judging.sqlite3')
+        with cli.state(self.directory/'judging.sqlite3') as db:
+            with db:db.execute("INSERT INTO grades(attempt_id,status,raw_response) VALUES(?,'unknown','preserved failure')",(ident,))
+        def remaining(args):
+            self.calls.append('generation')
+            with cli.state(args.db) as db:
+                with db:
+                    db.execute("UPDATE items SET status='done' WHERE qid=? AND model='afm-cloud'",(q['id'],))
+                    db.execute("INSERT INTO attempts(qid,model,status,response) VALUES(?,'afm-cloud','done','saved')",(q['id'],))
+            return 0
+        campaign.work(self.directory,threading.Event(),remaining,self.grading)
+        result=campaign.stats(self.directory)
+        self.assertEqual(self.calls,['generation'])
+        self.assertEqual(result['phase'],'generation_complete_grading_pending')
+        self.assertEqual(result['grading_failures_for_retry'],1)
+        with campaign.connect(self.directory/'judging.sqlite3') as db:
+            self.assertEqual(db.execute('SELECT raw_response FROM grades').fetchone()[0],'preserved failure')
+
     def test_plan_tampering_rejected(self):
         path=self.directory/'plan.json';data=json.loads(path.read_text());data['sample_size']=2;cli.private_json(path,data)
         with self.assertRaises(ValueError):campaign.stats(self.directory)

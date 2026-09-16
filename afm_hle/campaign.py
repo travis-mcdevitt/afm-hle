@@ -114,6 +114,9 @@ def stats(directory):
     result['judge_unknown_cost_attempts']=sum(r['estimated_cost_usd'] is None and r['status']!='inflight' for r in all_grades)
     result['judge_inflight']=sum(r['status']=='inflight' for r in grades)
     result['judge_errors']=sum(r['status'] not in ('done','inflight') for r in grades)
+    result['grading_deferred']=(directory/'grading-deferred.json').exists() or bool(result['judge_errors'] or result['judge_inflight'])
+    result['grading_failures_for_retry']=result['judge_errors']+result['judge_inflight']
+    result['grading_pending']=sum(r['status']=='done' for r in items)-sum(r['status']=='done' for r in grades)
     result['judge_usage']={k:0 for k in ['prompt_tokens','completion_tokens','reasoning_tokens']}
     for g in all_grades:
         u=json.loads(g['usage']) if g['usage'] else {}
@@ -162,24 +165,32 @@ def work(directory, stop, generation=cli.run, grading=judge.run):
         s=stats(directory)
         if any(any(v for k,v in m['generation'].items() if k in ('unknown','paused','blocked','inflight','skipped')) for m in s['models'].values()):
             set_phase(directory,'paused','Generation requires explicit resolution; no retry performed.');return
-        if s['judge_errors'] or s['judge_inflight']:
-            set_phase(directory,'paused','Grading requires explicit resolution; no retry performed.');return
         generated=sum(m['generation'].get('done',0) for m in s['models'].values())
         graded=sum(m['judged'] for m in s['models'].values())
         target=plan['sample_size']*len(plan['models'])
         if generated==target and graded==target:
             set_phase(directory,'complete','Fixed sample completed.');return
-        # Finish existing grading backlog before making more Apple requests.
-        if graded < generated:
+        if generated==target and s['grading_deferred']:
+            set_phase(directory,'generation_complete_grading_pending','All answers saved. Grading failures and backlog await explicit retry.');return
+        # A judge failure defers grading for this campaign; it cannot block generation.
+        if graded < generated and not s['grading_deferred']:
             sync(gen.db,grade.db)
             set_phase(directory,'grading')
-            if grading(grade)!=0:
-                set_phase(directory,'paused','Judge failure or unresolved outcome; no retry performed.');return
+            try:
+                failed=grading(grade)!=0
+            except Exception:
+                failed=True
+            if failed:
+                cli.private_json(directory/'grading-deferred.json',{
+                    'created_at':cli.stamp(),'reason':'Judge failure; grading deferred for explicit future retry.'})
+                set_phase(directory,'generating','Grading deferred after failure; continuing Apple generation.')
+                continue
         else:
-            set_phase(directory,'generating')
+            set_phase(directory,'generating','Grading deferred; failures and backlog retained for future retry.' if s['grading_deferred'] else None)
             if generation(gen)!=0:
                 sync(gen.db,grade.db)
                 set_phase(directory,'paused','Gateway hold, generation failure, or unresolved outcome; no retry performed.');return
+            sync(gen.db,grade.db)
         publish(directory)
         after=stats(directory)
         progress=sum(m['generation'].get('done',0)+m['judged'] for m in after['models'].values())
@@ -191,14 +202,15 @@ def work(directory, stop, generation=cli.run, grading=judge.run):
 HTML='''<!doctype html><html><head><meta charset="utf-8"><title>AFM × HLE live</title><style>
 body{background:#10151d;color:#eef2f6;font:16px system-ui;max-width:1000px;margin:40px auto;padding:0 24px}h1{font-size:30px} .cards{display:flex;gap:20px;flex-wrap:wrap}.card{background:#1d2633;padding:24px;border-radius:12px;flex:1;min-width:260px}progress{width:100%;height:20px;accent-color:#6fe0c1}small,.muted{color:#abb8c9} .big{font-size:36px;font-weight:650}#phase{color:#6fe0c1}pre{white-space:pre-wrap;font:14px system-ui}a{color:#6fe0c1}</style></head><body>
 <h1>AFM × Humanity’s Last Exam</h1><p>Fixed HLE sample · <span id="phase">Connecting…</span></p><p id="detail"></p>
-<div id="cards" class="cards"></div><div class="card" style="margin-top:20px"><p id="cost"></p><p id="usage"></p><p id="last"></p><small id="updated"></small></div>
+<div id="cards" class="cards"></div><div class="card" style="margin-top:20px"><p id="cost"></p><p id="grading"></p><p id="usage"></p><p id="last"></p><small id="updated"></small></div>
 <p class="muted">Scores are provisional until the full sample is graded. Error bars are pointwise Wilson 95% intervals, not sequential stopping rules. Apple token usage and quota reset times are unavailable.</p>
-<p class="muted">Runs locally without an AI observer. Refreshes every 3 seconds. Quota and unresolved failures pause inference; this page never retries it.</p><a href="/api/status">Aggregate JSON</a>
+<p class="muted">Runs locally without an AI observer. Refreshes every 3 seconds. Apple quota and generation failures pause inference. Judge failures defer grading while generation continues; this page never retries requests.</p><a href="/api/status">Aggregate JSON</a>
 <script>
 const pct=x=>x==null?'—':(100*x).toFixed(1)+'%';
 async function refresh(){try{let r=await fetch('/api/status',{cache:'no-store'});if(!r.ok)throw Error();let s=await r.json();document.getElementById('phase').textContent=s.phase;document.getElementById('detail').textContent=s.detail||'';
 document.getElementById('cards').innerHTML=Object.entries(s.models).map(([name,m])=>{let n=s.target_per_model,done=m.generation.done||0,ci=m.wilson_95_interval;return `<div class="card"><h2>${name}</h2><div class="big">${done} / ${n}</div><p>Answers saved</p><progress value="${done}" max="${n}"></progress><p>${m.judged} graded · ${m.correct} correct</p><progress value="${m.judged}" max="${n}"></progress><h2>${pct(m.accuracy_on_judged)}</h2><small>95% interval ${ci?ci.map(pct).join(' – '):'—'} · denominator: graded answers</small></div>`}).join('');
 document.getElementById('cost').textContent='Judge: '+s.judge_model+' · known cost $'+s.judge_known_cost_usd.toFixed(4)+' · unknown-cost attempts '+s.judge_unknown_cost_attempts;
+document.getElementById('grading').textContent='Grading: '+(s.grading_deferred?'deferred — ':'active — ')+s.grading_failures_for_retry+' failures flagged for retry · '+s.grading_pending+' answers awaiting valid grades';
 document.getElementById('usage').textContent='Judge tokens — input '+s.judge_usage.prompt_tokens.toLocaleString()+', completion '+s.judge_usage.completion_tokens.toLocaleString()+', reasoning '+s.judge_usage.reasoning_tokens.toLocaleString();
 document.getElementById('last').textContent=s.last_generation?'Last generation: '+s.last_generation.model+' · '+s.last_generation.status:'';
 document.getElementById('updated').textContent='Updated '+new Date(s.generated_at).toLocaleTimeString()+' · sample '+s.target_per_model+' of '+s.population_size;

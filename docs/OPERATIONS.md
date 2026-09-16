@@ -165,3 +165,19 @@ recovery; reset times are unknown. Then `start` resumes. A crash can leave an
 quota. Judge failures similarly need explicit review/retry in
 `.private/campaign/judging.sqlite3` with the frozen Gemini settings. No automatic
 cooldown polling or unbounded retries are performed.
+
+### Independent grading failures
+
+Judge timeouts, invalid grades, and other grading failures now defer further
+judging without pausing Apple generation. The dashboard shows failures flagged
+for retry and the total backlog. Failed grades remain unchanged in the private
+judging database, including raw responses and cost; they are not scored as wrong
+or silently retried. New answers continue to be copied into the judging snapshot.
+The final phase is `generation_complete_grading_pending` until grading finishes.
+Apple generation errors and quota holds still pause generation.
+
+For an explicit future grading retry, stop the worker and use the judge command
+with the campaign judging database, frozen Gemini settings, and
+`--retry-attempt ID` as described above. After resolving all failed grades, remove
+`.private/campaign/grading-deferred.json` if present and restart the worker to
+finish the backlog. Do not change the sample plan or delete grade records.

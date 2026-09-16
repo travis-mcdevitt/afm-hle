@@ -17,7 +17,7 @@ retained. No fallback, hidden retries, tools, or streaming.
 The current continuation is a detached **Cloud Pro only**, fixed 400-question
 [sampling campaign](docs/SAMPLING-PLAN.md), with a [local live dashboard](http://127.0.0.1:1981).
 
-Four live synthetic checks and 33 offline tests passed. Dataset authentication and
+Four live synthetic checks and 35 offline tests passed. Dataset authentication and
 the independent judge route are configured; HLE pilot execution has begun. See [execution status](docs/STATUS.md).
 
 See [plan and feasibility](docs/PLAN.md), [methodology](docs/METHODOLOGY.md), and

@@ -34,8 +34,15 @@ The detached native process alternates batches of at most ten generations and
 ten grades, checkpointing every result. It preserves the pilot databases and
 extends independent campaign databases. A local HTTP dashboard reads aggregate
 SQLite state every three seconds without making model requests. There is no AI
-observer, recurring Codex task, or automatic quota probing. Any unresolved
-failure pauses work for explicit review; completed items are never replayed.
+observer, recurring Codex task, or automatic quota probing. Apple generation failures pause generation for explicit review. Judge failures
+or timeouts defer further grading while Apple generation continues. Failed grades
+retain their raw response, usage, and cost for explicit future retry; completed
+items are never replayed. After all answers are saved, an incomplete grading run
+is labeled `generation_complete_grading_pending`, never complete.
+
+This operational change was authorized after 52 Pro answers and 43 valid grades.
+It changes failure handling only; the frozen sample, prompts, judge configuration,
+and original plan metadata remain unchanged.
 
 The Mac must remain running in its logged-in GUI session. `caffeinate -i` prevents
 idle system sleep while work is active; closing the lid, logout, reboot, or
