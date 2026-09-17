@@ -4,7 +4,8 @@ SSH was verified listening on the current Mac. Use your Mac’s local hostname
 and username in place of `MAC_HOST.local` and `MAC_USER`. Device-specific details
 are kept in the ignored `.private/IPAD-SSH-SETUP.md` local copy. The user’s iPad
 is on the same LAN and Apple Account.
-No new listener, account, password, or SSH authorization has been installed.
+The dedicated public key is now enrolled using a restricted forced command;
+no new listener, account, or password was created.
 
 ## On the iPad
 
@@ -25,7 +26,7 @@ placeholder with the verified result:
 A different negotiated host-key type can have a different fingerprint; verify
 that type separately rather than accepting an unexpected key blindly.
 
-## Mac enrollment (pending the public key)
+## Mac enrollment procedure
 
 Validate the supplied public key with `ssh-keygen`. Add an entry to the existing
 `~/.ssh/authorized_keys` preserving every other entry, with these options:
@@ -34,8 +35,8 @@ Validate the supplied public key with `ssh-keygen`. Add an entry to the existing
 restrict,command="/ABSOLUTE/REPOSITORY/PATH/scripts/ipad-worker-ssh" PUBLIC_KEY_LINE
 ```
 
-The forced command ignores `SSH_ORIGINAL_COMMAND` and accepts a single bounded
-JSON message on stdin. `restrict` disables forwarding, PTY, agent forwarding,
+The forced command recognizes fixed qualification command names; otherwise it
+accepts a single bounded JSON message on stdin. It never evaluates caller commands. `restrict` disables forwarding, PTY, agent forwarding,
 X11 forwarding, and user rc execution for this key. It grants access only to the
 qualification queue through this wrapper, not an interactive shell. Do not reuse
 an existing general-purpose key: another unrestricted authorization for the same
@@ -112,3 +113,18 @@ Mac gateway call counts. A failure can leave an uncertain job; preserve the
 Shortcut's displayed output and inspect the checkpoint before any retry. This
 one-call qualification does not yet implement the local answer-file checkpoint
 required for the eventual multi-question worker.
+
+## Pro qualification (current synced worker)
+
+After the standard Cloud check succeeded, the worker was switched to:
+`afm-ipad-pro-check-next` → **AFM Bridge - Cloud Pro** →
+`afm-ipad-pro-check-result` → Show Content (Text).
+A single Pro synthetic job is pending. Run **AFM iPad Worker** once on the iPad,
+with the synced Pro action visible. This cannot be initiated remotely from the
+Mac. It does not resume Mac generation or allocate HLE questions.
+
+Receipts now compare decoded RTF text when necessary while retaining the original
+upload in SQLite. `raw_exact_match` and `transport_encoding` distinguish this
+from a byte-exact plain-text response. Benchmark answer normalization is not
+implemented by this qualification-only change. A successful Pro check does not
+by itself establish daily capacity or complete HLE transport integration.

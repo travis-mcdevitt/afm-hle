@@ -1,7 +1,7 @@
 # iPad worker extension
 
 Status: durable-queue scaffold and synthetic-only SSH qualification adapter;
-not connected to live HLE campaigns. See [SSH setup](IPAD-SSH-SETUP.md). No iPad server is exposed and no iPad model requests have been sent.
+not connected to live HLE campaigns. See [SSH setup](IPAD-SSH-SETUP.md). The restricted SSH connection and one standard Cloud call have succeeded; Pro qualification is queued. No iPad server is exposed.
 The running Mac benchmarks retain their existing configuration.
 
 ## Device and capacity checks
@@ -13,7 +13,7 @@ are present on the iPad. Hardware eligibility
 does not establish a specific model route's availability.
 
 The user confirmed the iPad uses the same Apple Account and the same LAN as
-the Mac. Private authenticated transport still needs provisioning. The logged error
+the Mac. Private authenticated SSH transport is provisioned. The logged error
 `deniedDueToUserDeviceRateLimit` suggests device-related enforcement, but does not
 prove separate per-device allowances. Observed Mac limits (Cloud 140 and Pro 100
 in an 86,400-second rule) must not be assumed for this iPad or added together as
@@ -115,5 +115,9 @@ small set of untouched HLE questions through the central coordinator. The iPad
 will require user-side setup because this session cannot operate its screen.
 
 The SSH adapter and forced-command wrapper are implemented for qualification.
-Mac SSH is already listening; dedicated iPad public-key enrollment is pending.
-No new SSH credential has been authorized and no iPad call has been dispatched.
+The dedicated iPad public key is enrolled with a restricted forced command.
+The standard Cloud qualification returned RTF-wrapped `TEST_OK`; the original
+upload is preserved. Synthetic receipts decode RTF separately for comparison.
+The synced worker now selects Cloud Pro for a single pending qualification,
+which requires the user to start it on the iPad. The Mac Pro campaign remains
+paused; no HLE jobs have been reassigned.

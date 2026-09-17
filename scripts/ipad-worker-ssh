@@ -7,6 +7,8 @@ if [ "${SSH_ORIGINAL_COMMAND:-}" = "afm-ipad-worker-ping" ]; then
     exit $?
 fi
 case "${SSH_ORIGINAL_COMMAND:-}" in
+    afm-ipad-pro-check-next) exec .venv/bin/python -m afm_hle.ipad_worker check-next --device ipad-air-m3 --model afm-cloud-pro ;;
+    afm-ipad-pro-check-result) exec .venv/bin/python -m afm_hle.ipad_worker check-result --device ipad-air-m3 --model afm-cloud-pro ;;
     afm-ipad-check-next) exec .venv/bin/python -m afm_hle.ipad_worker check-next --device ipad-air-m3 ;;
     afm-ipad-check-result) exec .venv/bin/python -m afm_hle.ipad_worker check-result --device ipad-air-m3 ;;
 esac

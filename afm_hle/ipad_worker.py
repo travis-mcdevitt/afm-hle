@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import subprocess
 from . import cli
 from .device_queue import DeviceQueue
 
@@ -46,8 +47,21 @@ def dispatch(db,device,message):
     if set(message)!=required or message['operation']!='result':raise ValueError('invalid operation')
     db.finish(device,message['job_id'],message['payload_sha256'],
         {key:message[key] for key in ('model','status','text','error_code')})
+    answer=message['text'] if message['status']=='done' else ''
+    decoded=answer
+    encoding='plain'
+    if answer.startswith('{\\rtf'):
+        try:
+            decoded=subprocess.run(['/usr/bin/textutil','-convert','txt','-format','rtf','-stdin','-stdout'],
+                input=answer,text=True,capture_output=True,check=True,timeout=10).stdout.strip()
+            encoding='rtf'
+        except (OSError,subprocess.SubprocessError):
+            encoding='rtf_decode_failed'
+    # Preserve the original upload in the ledger; decoding only affects this
+    # synthetic qualification receipt, never a benchmark answer.
     return {'status':'recorded','job_id':message['job_id'],
-            'exact_match':message['status']=='done' and message['text']== 'TEST_OK'}
+            'exact_match':decoded=='TEST_OK','raw_exact_match':answer=='TEST_OK',
+            'transport_encoding':encoding}
 
 
 def serve(db,device,source):
@@ -56,25 +70,27 @@ def serve(db,device,source):
     return dispatch(db,device,json.loads(raw))
 
 
-def check_next(db,device):
+def check_next(db,device,model="afm-cloud"):
+    if model not in cli.MODELS:raise ValueError("unsupported model")
     rows=db.db.execute("SELECT id,model FROM jobs WHERE device=? AND state='pending'",(device,)).fetchall()
-    expected='qualification-v1:'+device+':afm-cloud'
-    if len(rows)!=1 or rows[0]['id']!=expected or rows[0]['model']!='afm-cloud':
-        raise ValueError('single Cloud qualification job required')
+    expected='qualification-v1:'+device+':'+model
+    if len(rows)!=1 or rows[0]['id']!=expected or rows[0]['model']!=model:
+        raise ValueError('single matching qualification job required')
     result=dispatch(db,device,{'operation':'next'})
     if result['status']!='job':raise ValueError('qualification already attempted or held')
     return result['prompt']
 
 
-def check_result(db,device,source):
+def check_result(db,device,source,model="afm-cloud"):
+    if model not in cli.MODELS:raise ValueError("unsupported model")
     raw=source.read(MAX_MESSAGE+1)
     if len(raw)>MAX_MESSAGE:raise ValueError('answer too large')
     answer=raw.decode('utf-8')
-    ident='qualification-v1:'+device+':afm-cloud'
+    ident='qualification-v1:'+device+':'+model
     row=db.db.execute('SELECT payload_hash FROM jobs WHERE id=? AND device=?',(ident,device)).fetchone()
     if not row:raise ValueError('qualification missing')
     return dispatch(db,device,{'operation':'result','job_id':ident,
-        'payload_sha256':row['payload_hash'],'model':'afm-cloud',
+        'payload_sha256':row['payload_hash'],'model':model,
         'status':'done','text':answer,'error_code':None})
 
 
@@ -89,9 +105,9 @@ def main():
     queue=DeviceQueue(args.db)
     try:
         if args.command=='check-next':
-            print(check_next(queue,args.device),end='')
+            print(check_next(queue,args.device,args.model),end='')
             return
-        elif args.command=='check-result':result=check_result(queue,args.device,sys.stdin.buffer)
+        elif args.command=='check-result':result=check_result(queue,args.device,sys.stdin.buffer,args.model)
         elif args.command=='prepare-check':result=prepare(queue,args.device,args.model)
         elif args.command=='serve':result=serve(queue,args.device,sys.stdin.buffer)
         else:
