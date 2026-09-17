@@ -109,3 +109,11 @@ accuracy denominator.
 
 Predefine a small request budget per route before running this experiment. Do
 not launch calibration or quota probes merely because this next step is recorded.
+
+## Next step: iPad execution worker
+
+Extend afm-gateway with an authenticated iPad pull worker and central question
+ownership. The proposed device is an iPad Air 11-inch (M3) on iPadOS 27.0.
+[Design, setup checks, and implementation status](IPAD-WORKER.md) distinguish the
+offline queue scaffold from the remaining live integration. Additional daily
+capacity must be measured; separate per-device quota is not yet established.
