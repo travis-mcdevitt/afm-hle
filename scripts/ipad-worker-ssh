@@ -1,0 +1,5 @@
+#!/bin/sh
+# Forced SSH command: ignores SSH_ORIGINAL_COMMAND and reads one JSON request.
+set -eu
+cd -- "$(dirname -- "$0")/.."
+exec .venv/bin/python -m afm_hle.ipad_worker serve --device ipad-air-m3

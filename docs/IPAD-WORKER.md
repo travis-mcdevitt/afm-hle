@@ -1,15 +1,15 @@
 # iPad worker extension
 
-Status: design and offline durable-queue scaffold, not connected to live HLE
-campaigns. No iPad server is exposed and no iPad model requests have been sent.
+Status: durable-queue scaffold and synthetic-only SSH qualification adapter;
+not connected to live HLE campaigns. See [SSH setup](IPAD-SSH-SETUP.md). No iPad server is exposed and no iPad model requests have been sent.
 The running Mac benchmarks retain their existing configuration.
 
 ## Device and capacity checks
 
 User device: iPad Air 11-inch (M3), iPadOS 27.0. This meets Apple's published
 Apple Intelligence hardware/OS requirements. Enable Apple Intelligence and use
-matching supported device/Siri languages; verify the actual Shortcuts model
-picker offers AFM Cloud (and separately Pro if desired). Hardware eligibility
+matching supported device/Siri languages; the user confirmed the same synced AFM bridge shortcuts and cloud model choices
+are present on the iPad. Hardware eligibility
 does not establish a specific model route's availability.
 
 The user confirmed the iPad uses the same Apple Account and the same LAN as
@@ -113,3 +113,7 @@ LAN transport; configure the gateway worker adapter and scoped credential; insta
 bounded iPad Shortcut; record one synthetic availability check; then assign a
 small set of untouched HLE questions through the central coordinator. The iPad
 will require user-side setup because this session cannot operate its screen.
+
+The SSH adapter and forced-command wrapper are implemented for qualification.
+Mac SSH is already listening; dedicated iPad public-key enrollment is pending.
+No new SSH credential has been authorized and no iPad call has been dispatched.
