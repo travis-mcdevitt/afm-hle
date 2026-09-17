@@ -2,4 +2,8 @@
 # Forced SSH command: ignores SSH_ORIGINAL_COMMAND and reads one JSON request.
 set -eu
 cd -- "$(dirname -- "$0")/.."
+if [ "${SSH_ORIGINAL_COMMAND:-}" = "afm-ipad-worker-ping" ]; then
+    printf '%s\n' '{"operation":"ping"}' | .venv/bin/python -m afm_hle.ipad_worker serve --device ipad-air-m3
+    exit $?
+fi
 exec .venv/bin/python -m afm_hle.ipad_worker serve --device ipad-air-m3

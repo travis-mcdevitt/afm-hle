@@ -26,6 +26,11 @@ def prepare(db,device,model):
 
 def dispatch(db,device,message):
     if not isinstance(message,dict):raise ValueError('JSON object required')
+    if message=={'operation':'ping'}:
+        with db.transaction():
+            db.db.execute('INSERT INTO events(job,time,action) VALUES(?,?,?)',
+                ('connection:'+device,cli.stamp(),'ssh_connection_verified'))
+        return {'status':'ready','device':device,'model_called':False}
     if message=={'operation':'next'}:
         # Reject unsupported requests before claiming so setup errors cannot
         # strand a real HLE job. This transport version supports synthetic only.

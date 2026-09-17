@@ -77,3 +77,19 @@ Do not run the complete recipe before verifying the SSH Input action passes
 stdin correctly on this iPad. A connection test and actual model call will be
 checked separately during enrollment. Credentials stay out of Git and the
 existing Mac benchmarks continue unchanged.
+
+## Connection-only probe
+
+The synced worker can first run script text `afm-ipad-worker-ping` with no stdin.
+The restricted wrapper recognizes only this fixed probe; it records a connection
+event and returns `status=ready`, the enrolled device ID, and `model_called=false`.
+It does not claim the synthetic job or invoke Apple. Follow it with Show Content
+in Shortcuts to display the SSH result. Run this on the enrolled iPad, not the
+Mac: its Shortcuts SSH key can differ from the Mac's key.
+
+A synced **AFM iPad Public Key** Text action can carry the public key back to the
+Mac for explicit enrollment. Public-key comments may name an older device;
+confirm the source device with the owner. Never sync a private key or password
+in a shortcut. Enrollment preserves other authorized keys and adds only the
+restricted forced-command entry. The connection still needs to be tested on the
+iPad; local unit tests alone do not establish successful SSH authentication.

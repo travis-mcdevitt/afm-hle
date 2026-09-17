@@ -20,6 +20,10 @@ class IPadWorkerTests(unittest.TestCase):
         self.assertTrue(dispatch(self.queue,'ipad',reply)['exact_match'])
         self.assertEqual(dispatch(self.queue,'ipad',{'operation':'next'})['status'],'no_work_or_held')
 
+    def test_ping_does_not_claim_or_execute(self):
+        self.assertEqual(dispatch(self.queue,'ipad',{'operation':'ping'}),{'status':'ready','device':'ipad','model_called':False})
+        self.assertEqual(self.queue.db.execute('SELECT state FROM jobs').fetchone()[0],'pending')
+
     def test_untrusted_operation_and_input_size_rejected(self):
         with self.assertRaises(ValueError):dispatch(self.queue,'ipad',{'operation':'next','device':'other'})
         with self.assertRaises(ValueError):serve(self.queue,'ipad',io.BytesIO(b'x'*(MAX_MESSAGE+1)))
