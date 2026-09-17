@@ -110,3 +110,13 @@ The public generator `scripts/build-ipad-shortcuts.py` accepts local `--host`,
 key is embedded. Review the native editor after import. The deployed shortcuts
 were inspected on the Mac; the first real iPad HLE round trip remains the live
 transport validation.
+
+### SSH handoff timing
+
+The claim command allows up to 15 seconds for an existing `inflight` upload to
+commit before claiming the next question. It releases the database lock between
+checks, records `next_claim_waiting_for_upload`, and does not replay inference.
+Unknown, failed, quota-limited, or paused states still stop immediately. If no
+upload arrives within the bound, the original attempt remains unresolved.
+This addresses observed next-claim errors followed shortly by successful uploads;
+the exact Shortcuts scheduling behavior remains unverified.

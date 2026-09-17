@@ -137,6 +137,30 @@ def claim(directory):
                 'ordinal':row['ordinal'],'payload_sha256':row['payload_hash'],'protocol':PROTOCOL}
 
 
+def claim_wait(directory, timeout=15, interval=0.25):
+    """Allow a preceding SSH upload to finish; never replay a generation.
+
+    Shortcuts may overlap the next loop's SSH action with the previous upload.
+    Release the DB lock between checks so that upload can commit. Unknown and
+    quota-limited jobs still fail immediately. A bounded wait leaves ownership
+    unchanged if the upload never arrives.
+    """
+    deadline=time.monotonic()+timeout
+    logged=False
+    while True:
+        try:return claim(directory)
+        except ValueError:
+            with queue(directory) as db:
+                enabled=db.execute('SELECT enabled FROM ipad_controls').fetchone()[0]
+                rows=db.execute("SELECT ticket,state FROM ipad_jobs WHERE state IN ('inflight','unknown','rate_limited','failed')").fetchall()
+                wait=bool(enabled and rows and all(r['state']=='inflight' for r in rows))
+                if wait and not logged:
+                    with db:event(db,rows[0]['ticket'],'next_claim_waiting_for_upload')
+                    logged=True
+            if not wait or time.monotonic()>=deadline:raise
+            time.sleep(min(interval,max(0,deadline-time.monotonic())))
+
+
 def decode_answer(raw):
     text=raw.decode('utf-8')
     if not text.strip():raise ValueError('empty answer')
@@ -305,7 +329,7 @@ def main():
     try:
         if a.command=='enqueue':result=enqueue(d,a.count)
         elif a.command in ('pause','resume'):result=control(d,a.command=='resume')
-        elif a.command=='claim':result=claim(d)
+        elif a.command=='claim':result=claim_wait(d)
         elif a.command=='submit':result=submit(d,sys.stdin.buffer)
         elif a.command=='status':result=status(d)
         elif a.command=='grade':result={'exit_code':grade(d,a.retry_grade)}

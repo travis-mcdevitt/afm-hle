@@ -74,6 +74,31 @@ class IPadCampaignTests(unittest.TestCase):
             with self.assertRaises(ValueError):w.submit(self.d,io.BytesIO(raw))
         self.assertEqual(w.status(self.d)['saved'],0)
 
+class ClaimHandoffTests(unittest.TestCase):
+    setUp=IPadCampaignTests.setUp
+    start=IPadCampaignTests.start
+    envelope=IPadCampaignTests.envelope
+
+    def test_next_claim_waits_for_existing_upload_without_replaying(self):
+        from unittest.mock import patch
+        old=self.start()
+        def finish(_):w.submit(self.d,self.envelope(old['ticket']))
+        with patch.object(w.time,'sleep',side_effect=finish):
+            new=w.claim_wait(self.d,timeout=1)
+        self.assertEqual(new['ordinal'],3)
+        self.assertNotEqual(new['ticket'],old['ticket'])
+        self.assertEqual(w.status(self.d)['saved'],1)
+
+    def test_wait_timeout_leaves_same_attempt_and_quota_hold_never_waits(self):
+        from unittest.mock import patch
+        old=self.start()
+        with self.assertRaises(ValueError):w.claim_wait(self.d,timeout=0)
+        self.assertEqual(w.status(self.d)['jobs'][0]['state'],'inflight')
+        w.resolve(self.d,old['ticket'],'rate_limited');w.control(self.d,True)
+        with patch.object(w.time,'sleep') as sleep:
+            with self.assertRaises(ValueError):w.claim_wait(self.d)
+            sleep.assert_not_called()
+
 if __name__=='__main__':unittest.main()
 
 class GatewayMirrorTests(unittest.TestCase):
