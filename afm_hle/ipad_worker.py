@@ -56,17 +56,43 @@ def serve(db,device,source):
     return dispatch(db,device,json.loads(raw))
 
 
+def check_next(db,device):
+    rows=db.db.execute("SELECT id,model FROM jobs WHERE device=? AND state='pending'",(device,)).fetchall()
+    expected='qualification-v1:'+device+':afm-cloud'
+    if len(rows)!=1 or rows[0]['id']!=expected or rows[0]['model']!='afm-cloud':
+        raise ValueError('single Cloud qualification job required')
+    result=dispatch(db,device,{'operation':'next'})
+    if result['status']!='job':raise ValueError('qualification already attempted or held')
+    return result['prompt']
+
+
+def check_result(db,device,source):
+    raw=source.read(MAX_MESSAGE+1)
+    if len(raw)>MAX_MESSAGE:raise ValueError('answer too large')
+    answer=raw.decode('utf-8')
+    ident='qualification-v1:'+device+':afm-cloud'
+    row=db.db.execute('SELECT payload_hash FROM jobs WHERE id=? AND device=?',(ident,device)).fetchone()
+    if not row:raise ValueError('qualification missing')
+    return dispatch(db,device,{'operation':'result','job_id':ident,
+        'payload_sha256':row['payload_hash'],'model':'afm-cloud',
+        'status':'done','text':answer,'error_code':None})
+
+
 def main():
     os.umask(0o077)
     p=argparse.ArgumentParser(description=__doc__)
-    p.add_argument('command',choices=['prepare-check','serve','status'])
+    p.add_argument('command',choices=['prepare-check','serve','status','check-next','check-result'])
     p.add_argument('--db',type=Path,default=DEFAULT)
     p.add_argument('--device',default='ipad-air-m3')
     p.add_argument('--model',choices=cli.MODELS,default='afm-cloud')
     args=p.parse_args()
     queue=DeviceQueue(args.db)
     try:
-        if args.command=='prepare-check':result=prepare(queue,args.device,args.model)
+        if args.command=='check-next':
+            print(check_next(queue,args.device),end='')
+            return
+        elif args.command=='check-result':result=check_result(queue,args.device,sys.stdin.buffer)
+        elif args.command=='prepare-check':result=prepare(queue,args.device,args.model)
         elif args.command=='serve':result=serve(queue,args.device,sys.stdin.buffer)
         else:
             result={'device':args.device,'jobs':[dict(r) for r in queue.db.execute(

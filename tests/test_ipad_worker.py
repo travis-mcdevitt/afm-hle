@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from afm_hle.device_queue import DeviceQueue
-from afm_hle.ipad_worker import prepare,dispatch,serve,MAX_MESSAGE
+from afm_hle.ipad_worker import prepare,dispatch,serve,MAX_MESSAGE,check_next,check_result
 
 class IPadWorkerTests(unittest.TestCase):
     def setUp(self):
@@ -19,6 +19,14 @@ class IPadWorkerTests(unittest.TestCase):
         self.assertTrue(dispatch(self.queue,'ipad',reply)['exact_match'])
         self.assertTrue(dispatch(self.queue,'ipad',reply)['exact_match'])
         self.assertEqual(dispatch(self.queue,'ipad',{'operation':'next'})['status'],'no_work_or_held')
+
+    def test_plain_shortcut_roundtrip_preserves_answer_and_blocks_rerun(self):
+        self.assertEqual(check_next(self.queue,'ipad'),'Reply exactly "TEST_OK"')
+        with self.assertRaises(ValueError):check_next(self.queue,'ipad')
+        self.assertTrue(check_result(self.queue,'ipad',io.BytesIO(b'TEST_OK'))['exact_match'])
+        self.assertTrue(check_result(self.queue,'ipad',io.BytesIO(b'TEST_OK'))['exact_match'])
+        with self.assertRaises(ValueError):check_result(self.queue,'ipad',io.BytesIO(b'changed'))
+        with self.assertRaises(ValueError):check_next(self.queue,'ipad')
 
     def test_ping_does_not_claim_or_execute(self):
         self.assertEqual(dispatch(self.queue,'ipad',{'operation':'ping'}),{'status':'ready','device':'ipad','model_called':False})

@@ -93,3 +93,22 @@ confirm the source device with the owner. Never sync a private key or password
 in a shortcut. Enrollment preserves other authorized keys and adds only the
 restricted forced-command entry. The connection still needs to be tested on the
 iPad; local unit tests alone do not establish successful SSH authentication.
+
+## One-call Cloud qualification shortcut
+
+After a verified connection-only probe, the synced worker can use this bounded
+sequence: SSH script `afm-ipad-check-next` → Run Shortcut **AFM Bridge - Cloud**
+with **Shell Script Result** as input → SSH script `afm-ipad-check-result` with
+**Shortcut Result** as stdin → Show Content containing the upload acknowledgement.
+Both SSH actions use the enrolled key. The fixed-command adapter generates the
+job metadata internally; raw model output is never interpolated into shell code.
+The first action fails if the single synthetic job was already claimed or
+completed, so accidentally rerunning the shortcut cannot duplicate inference.
+Only the iPad should execute this qualification, not the Mac.
+
+Expected acknowledgement: `status=recorded` and `exact_match=true`. The result is
+stored in the private qualification ledger, outside HLE scores and the existing
+Mac gateway call counts. A failure can leave an uncertain job; preserve the
+Shortcut's displayed output and inspect the checkpoint before any retry. This
+one-call qualification does not yet implement the local answer-file checkpoint
+required for the eventual multi-question worker.
