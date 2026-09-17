@@ -1,4 +1,7 @@
-# iPad SSH setup: qualification stage
+# iPad SSH setup: qualification history
+
+The HLE worker is now installed. See [Mac queue controls](IPAD-QUEUE.md) for the
+current operational workflow; the instructions below document its qualification.
 
 SSH was verified listening on the current Mac. Use your Mac’s local hostname
 and username in place of `MAC_HOST.local` and `MAC_USER`. Device-specific details

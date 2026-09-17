@@ -73,3 +73,8 @@ The [Gemini trial](docs/GEMINI-TRIAL.md) completed all 50 saved answers with an
 explicit schema compatibility profile: 49/50 correctness agreement with the
 reference, and about $0.073 total known cost including synthetic checks.
 The reference grader remains unchanged.
+
+## iPad Pro worker
+
+[Mac queue controls and retry procedures](docs/IPAD-QUEUE.md) cover the ticketed
+iPad worker, detached grading, preserved attempt history, and current image limit.

@@ -1,8 +1,13 @@
 # iPad worker extension
 
-Status: durable-queue scaffold and synthetic-only SSH qualification adapter;
-not connected to live HLE campaigns. See [SSH setup](IPAD-SSH-SETUP.md). The restricted SSH connection and one standard Cloud call have succeeded; Pro qualification is queued. No iPad server is exposed.
-The running Mac benchmarks retain their existing configuration.
+Status: ticketed Pro HLE queue integrated with Mac controls and detached grading.
+See [queue operation and current limits](IPAD-QUEUE.md). Standard Cloud and Pro
+qualification calls both succeeded from the iPad. Seven untouched text questions
+are reserved; the first live HLE round trip is pending. Image transport remains
+unqualified, and allocation stops at an image rather than changing the sample.
+
+The remaining sections describe the original architecture and qualification
+history; the queue document is authoritative for the deployed implementation.
 
 ## Device and capacity checks
 
