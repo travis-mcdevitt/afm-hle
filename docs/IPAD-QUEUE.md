@@ -12,7 +12,7 @@ Open **http://127.0.0.1:1983/** on the Mac. The detached service provides:
 - **Resume queue / Pause queue**: enable or disable the next iPad claim. An
   already-running Apple call cannot be cancelled from this page; its result can
   still be uploaded while paused.
-- **Queue next 7**: reserve untouched questions in frozen order. Existing Mac
+- **Batch size / Queue batch**: choose 1–100 and reserve untouched questions in frozen order. Existing Mac
   attempts, including uncertain calls, are not transferred. Allocation stops
   at the first untouched image question, without skipping it or redefining the
   sample. The initial allocation is sample positions 194–200; position 193 is
@@ -32,7 +32,7 @@ Open **http://127.0.0.1:1983/** on the Mac. The detached service provides:
 - **Grade saved answers / Retry grade**: grading runs separately and failures
   remain recorded until explicitly retried. Generation does not wait for grades.
 
-Run **AFM iPad HLE Pro** on the iPad. It repeats at most seven times, pulling
+Run **AFM iPad HLE Pro** on the iPad. It repeats at most 100 times, pulling
 one ticket, extracting the prompt, invoking **AFM Bridge - Cloud Pro**, encoding
 its answer, saving a uniquely named receipt in the Shortcuts folder, and then
 uploading that receipt. The save action precedes the upload. Keep Shortcuts in
@@ -120,3 +120,19 @@ Unknown, failed, quota-limited, or paused states still stop immediately. If no
 upload arrives within the bound, the original attempt remains unresolved.
 This addresses observed next-claim errors followed shortly by successful uploads;
 the exact Shortcuts scheduling behavior remains unverified.
+
+### Batch ceiling and loop acknowledgement
+
+Seven was an initial qualification batch, not an Apple limit. The deployed
+shortcut now has a 100-iteration ceiling; the Mac allocator accepts 1–100 per
+batch and still stops before unqualified image input. Each iteration consumes
+the upload's `status` in an If action before End Repeat, and stops if the
+acknowledgement is absent. SSH errors also abort the loop. The conditional's
+native macOS 27 variable wrapper and condition were verified in the editor.
+Actual multi-iteration iPad behavior remains to be confirmed after this update.
+
+The observed Mac Pro rule was 100 requests in 86,400 seconds. This does not prove
+an iPad daily allowance or a midnight reset. Qualification calls and failed or
+uncertain model attempts may consume capacity; a 100-iteration ceiling does not
+promise 100 completed answers. A quota interruption retains the in-flight ticket
+for explicit resolution. Do not automatically retry it.

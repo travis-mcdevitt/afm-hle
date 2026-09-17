@@ -90,7 +90,7 @@ def add_job(db, qid, ordinal, body, prompt):
 
 
 def enqueue(directory, count):
-    if type(count) is not int or not 1<=count<=20:raise ValueError('batch must contain 1–20 questions')
+    if type(count) is not int or not 1<=count<=100:raise ValueError('batch must contain 1–100 questions')
     plan=campaign.load_plan(directory)
     data=json.loads(Path(plan['data_path']).read_text())
     if cli.digest(data)!=plan['dataset_sha256']:raise ValueError('dataset changed')

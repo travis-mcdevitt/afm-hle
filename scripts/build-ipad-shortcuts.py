@@ -21,7 +21,8 @@ def token(parts):
             attachments['{%d, 1}'%len(string)]=part['Value'];string+='\ufffc'
     return {'Value':{'string':string,'attachmentsByRange':attachments},'WFSerializationType':'WFTextTokenString'}
 
-def build(host,user,retry=False):
+def build(host,user,retry=False,batch_size=100):
+    if type(batch_size) is not int or not 1<=batch_size<=100:raise ValueError("batch_size must be 1–100")
     actions=[]
     def add(name,**params):
         ident=str(uuid.uuid4()).upper();params['UUID']=ident
@@ -35,7 +36,7 @@ def build(host,user,retry=False):
         receipt=add('documentpicker.open',WFSelectMultiple=False)
     else:
         group=str(uuid.uuid4()).upper()
-        add('repeat.count',WFRepeatCount=7,WFControlFlowMode=0,GroupingIdentifier=group)
+        add('repeat.count',WFRepeatCount=batch_size,WFControlFlowMode=0,GroupingIdentifier=group)
         claim=ssh('afm-ipad-hle-pro-next')
         ticket=add('getvalueforkey',WFDictionaryKey='ticket',WFInput=claim)
         prompt=add('getvalueforkey',WFDictionaryKey='prompt',WFInput=claim)
@@ -46,7 +47,16 @@ def build(host,user,retry=False):
         named=add('setitemname',WFName=token(['afm-ipad-',ticket,'.txt']),WFInput=receipt)
         add('documentpicker.save',WFInput=named,WFAskWhereToSave=False,WFSaveFileOverwrite=False,WFFileDestinationPath='')
     ack=ssh('afm-ipad-hle-pro-result',receipt)
-    if not retry:add('repeat.count',WFControlFlowMode=2,GroupingIdentifier=group)
+    if not retry:
+        # A control-flow dependency consumes the SSH acknowledgement before
+        # Shortcuts can advance the loop; an unused result can be deferred.
+        status=add('getvalueforkey',WFDictionaryKey='status',WFInput=ack)
+        barrier=str(uuid.uuid4()).upper()
+        add('conditional',WFInput={'Type':'Variable','Variable':status},WFCondition=101,
+            WFControlFlowMode=0,GroupingIdentifier=barrier)
+        add('exit')
+        add('conditional',WFControlFlowMode=2,GroupingIdentifier=barrier)
+        add('repeat.count',WFControlFlowMode=2,GroupingIdentifier=group)
     add('showresult',Text=token([ack]))
     return {'WFWorkflowActions':actions,'WFWorkflowClientVersion':'3100.0.2.3',
             'WFWorkflowMinimumClientVersion':900,'WFWorkflowMinimumClientVersionString':'900',

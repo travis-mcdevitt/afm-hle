@@ -14,7 +14,7 @@ HTML=r'''<!doctype html><meta charset="utf-8"><title>iPad AFM Pro worker</title>
 <p>Start <b>AFM iPad HLE Pro</b> on the iPad to pull work. Mac controls apply at the next pull. Pause cannot cancel an Apple request already in progress.</p>
 <div class="card"><h2 id="state">Connecting…</h2><p id="counts"></p>
 <button onclick="act('resume')">Resume queue</button><button onclick="act('pause')">Pause queue</button>
-<button onclick="act('enqueue',{count:7})">Queue next 7</button><button onclick="act('grade')">Grade saved answers</button>
+<label>Batch size <input id="batch-size" type="number" min="1" max="100" value="7" style="width:65px"></label><button onclick="act('enqueue',{count:Number(document.getElementById('batch-size').value)})">Queue batch</button><button onclick="act('grade')">Grade saved answers</button>
 <p id="detail"></p><small>Stops at the first untouched image question until image transport is qualified. No automatic generation retries. Grades are separate from Mac results.</small></div>
 <p><label>Retry a saved receipt upload from this Mac: <input id="receipt" type="file" accept=".txt"></label> <button onclick="upload()">Upload receipt (no model call)</button></p><p id="error"></p><p id="grading"></p><table><thead><tr><th>Sample #</th><th>Attempt</th><th>State</th><th>Round trip</th><th>Controls</th></tr></thead><tbody id="jobs"></tbody></table>
 <h2>Recent events</h2><pre id="events"></pre><script>
