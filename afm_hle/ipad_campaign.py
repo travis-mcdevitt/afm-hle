@@ -177,7 +177,10 @@ def submit(directory, source):
     """Envelope = immutable UUID, newline, base64 UTF-8 answer. No shell interpolation."""
     envelope=source.read(MAX_RESULT+1)
     if len(envelope)>MAX_RESULT:raise ValueError('result too large')
-    ticket,encoded=envelope.decode('utf-8').split('\n',1)
+    text=envelope.decode('utf-8')
+    if '\n' not in text:
+        raise ValueError('Invalid receipt: expected ticket and answer on separate lines; select a saved afm-ipad receipt and extract its text')
+    ticket,encoded=text.split('\n',1)
     if str(uuid.UUID(ticket))!=ticket:raise ValueError('invalid ticket')
     raw=base64.b64decode(''.join(encoded.split()),validate=True)
     canonical=base64.b64encode(raw).decode()

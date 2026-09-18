@@ -33,7 +33,10 @@ def build(host,user,retry=False,batch_size=100):
         if inp is not None:params['WFInput']=inp
         return add('runsshscript',**params)
     if retry:
-        receipt=add('documentpicker.open',WFSelectMultiple=False)
+        selected=add('file.select',WFSelectMultiple=False)
+        selected['Value']['OutputName']='File'
+        receipt=add('detect.text',WFInput=selected)
+        receipt['Value']['OutputName']='Text'
     else:
         group=str(uuid.uuid4()).upper()
         add('repeat.count',WFRepeatCount=batch_size,WFControlFlowMode=0,GroupingIdentifier=group)

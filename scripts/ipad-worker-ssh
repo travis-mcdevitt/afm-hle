@@ -2,6 +2,7 @@
 # Forced SSH command: fixed allowlist only; never evaluates caller commands.
 set -eu
 cd -- "$(dirname -- "$0")/.."
+.venv/bin/python -m afm_hle.ipad_ssh_audit
 if [ "${SSH_ORIGINAL_COMMAND:-}" = "afm-ipad-worker-ping" ]; then
     printf '%s\n' '{"operation":"ping"}' | .venv/bin/python -m afm_hle.ipad_worker serve --device ipad-air-m3
     exit $?

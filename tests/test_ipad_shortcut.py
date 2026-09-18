@@ -21,3 +21,5 @@ class ShortcutFlowTests(unittest.TestCase):
             with self.assertRaises(ValueError):b.build('h','u',batch_size=n)
         actions=b.build('h','u',retry=True)['WFWorkflowActions']
         self.assertFalse(any(a['WFWorkflowActionIdentifier'].endswith(('runworkflow','repeat.count')) for a in actions))
+        self.assertEqual([a['WFWorkflowActionIdentifier'] for a in actions[:2]],['is.workflow.actions.file.select','is.workflow.actions.detect.text'])
+        self.assertEqual(actions[2]['WFWorkflowActionParameters']['WFInput']['Value']['OutputUUID'],actions[1]['WFWorkflowActionParameters']['UUID'])
