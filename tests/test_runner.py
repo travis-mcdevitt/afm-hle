@@ -92,7 +92,10 @@ class RunnerTests(unittest.TestCase):
             self.assertEqual(db.execute('SELECT count(*) FROM events').fetchone()[0], 1)
 
     def test_images_and_parameter_contract(self):
-        q = dict(self.data['questions'][0], image='data:image/png;base64,YQ==')
+        import base64, io
+        from PIL import Image
+        encoded=io.BytesIO();Image.new('RGB',(2,2),'white').save(encoded,format='PNG')
+        q = dict(self.data['questions'][0], image='data:image/png;base64,'+base64.b64encode(encoded.getvalue()).decode())
         body = cli.payload(q, 'afm-cloud')
         self.assertEqual(set(body), {'model', 'messages', 'stream'})
         self.assertEqual(body['messages'][-1]['content'][1]['type'], 'image_url')

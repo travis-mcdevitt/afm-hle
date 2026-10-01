@@ -138,7 +138,7 @@ def initialize(db, data, endpoint):
     manifest = {'dataset': data['dataset'], 'revision': data['revision'],
                 'dataset_sha256': digest(data), 'models': MODELS,
                 'prompt_sha256': digest(PROMPT), 'endpoint': endpoint,
-                'protocol': 'afm-hle-v2', 'image_policy': POLICY, 'total_questions': len(questions)}
+                'protocol': 'afm-hle-v3', 'image_policy': POLICY, 'total_questions': len(questions)}
     serialized = encode(manifest).decode()
     existing = db.execute('SELECT manifest FROM config WHERE id=1').fetchone()
     if existing and existing[0] != serialized:
@@ -167,11 +167,11 @@ def migrate_images(args):
             image = questions[attempt['qid']].get('image')
             if attempt['status'] == 'inflight' or (image and gateway_image(image) != image):
                 raise ValueError('already dispatched inputs would change')
-        new = dict(old, protocol='afm-hle-v2', image_policy=POLICY)
+        new = dict(old, protocol='afm-hle-v3', image_policy=POLICY)
         with db:
             db.execute('UPDATE config SET manifest=? WHERE id=1', (encode(new).decode(),))
             db.execute('INSERT INTO events VALUES(?,?,?,?)',
-                       (stamp(), None, None, 'migrate_v1_to_v2_images; original_manifest=' + encode(old).decode()))
+                       (stamp(), None, None, 'migrate_v1_to_v3_images; original_manifest=' + encode(old).decode()))
         print('Image policy upgraded; all previously dispatched payloads remain unchanged.')
 
 
