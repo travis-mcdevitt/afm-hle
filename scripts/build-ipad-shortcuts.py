@@ -73,7 +73,9 @@ def build_batch(host,user,batch_size=100):
     ack=str(uuid.uuid4()).upper()
     status=action('getvalueforkey',WFDictionaryKey='status',WFInput=variable('AFM Upload Status'))
     actions.extend([status,
-        action('conditional',WFInput={'Type':'Variable','Variable':output(status['WFWorkflowActionParameters']['UUID'],'Dictionary Value')},WFCondition=101,WFControlFlowMode=0,GroupingIdentifier=ack),
+        action('setvariable',WFVariableName='AFM Upload Confirmation',WFInput=output(status['WFWorkflowActionParameters']['UUID'])),
+        action('conditional',WFInput={'Type':'Variable','Variable':variable('AFM Upload Confirmation')},WFCondition=101,WFControlFlowMode=0,GroupingIdentifier=ack),
+        action('showresult',Text='Upload confirmation was empty. Stopped before the next question; check the Mac dashboard. Do not regenerate a saved answer.'),
         action('exit'),action('conditional',WFControlFlowMode=2,GroupingIdentifier=ack),
         action('repeat.count',WFControlFlowMode=2,GroupingIdentifier=group),
         action('showresult',Text='iPad batch ceiling reached. Saved answers remain on the Mac.')])

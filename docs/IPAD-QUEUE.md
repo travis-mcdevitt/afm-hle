@@ -23,7 +23,10 @@ receipt, uploads it, and shows the acknowledgement. Its native Mac editor wiring
 was verified on October 2, followed by two successful iPad claim, answer, upload
 and grading round trips. **AFM iPad HLE Pro Batch** uses that same named-variable
 flow; its installed loop and completion guards are editor-verified, but a live
-batch run is still required. The older loop remains unverified. New tickets
+batch run is still required. The first batch trial saved one answer and stopped
+silently. The upload guard now caches the scalar confirmation in a named variable
+and displays an explanatory message on an empty confirmation; this correction
+is editor-verified but needs a multi-iteration iPad trial. The older loop remains unverified. New tickets
 preserve superseded uncertain attempts and possible quota consumption.
 
 Open **http://127.0.0.1:1983/** on the Mac. The detached service provides:
@@ -63,10 +66,15 @@ Apple. Receipts may be available on the Mac through the Shortcuts iCloud folder.
 Keep the file when an upload fails. Do not create a replacement generation until
 the old worker has stopped and its receipt has been checked.
 
-The Mac cannot remotely launch iPad Shortcuts. Resume arms the server-side queue;
+The current SSH setup cannot remotely launch iPad Shortcuts. Resume arms the server-side queue;
 if the iPad shortcut has already stopped, start it again on the iPad. A paused,
 empty, or unresolved queue makes the claim SSH action exit with an explanatory
 error before any model action runs. This is a safe stop, not a new model failure.
+
+Apple's `shortcuts://run-shortcut?name=...` links launch on the device that opens
+the URL, rather than targeting another device. An Xcode device inventory on
+October 2 found no paired devices. Remote launching through developer tooling
+would need device pairing and separate validation; it is not configured.
 
 ## Data, provenance, and accounting
 

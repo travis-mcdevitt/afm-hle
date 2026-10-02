@@ -17,6 +17,8 @@ class ShortcutFlowTests(unittest.TestCase):
             self.assertEqual(get['WFWorkflowActionParameters']['WFInput']['Value'],{'Type':'Variable','VariableName':'AFM Job'})
         self.assertEqual(actions[-2]['WFWorkflowActionParameters']['WFControlFlowMode'],2)
         self.assertEqual(gets[-1]['WFWorkflowActionParameters']['WFInput']['Value']['VariableName'],'AFM Upload Status')
+        guards=[a for a in actions if a['WFWorkflowActionIdentifier'].endswith('conditional') and a['WFWorkflowActionParameters']['WFControlFlowMode']==0]
+        self.assertEqual(guards[-1]['WFWorkflowActionParameters']['WFInput']['Variable']['Value'],{'Type':'Variable','VariableName':'AFM Upload Confirmation'})
 
     def test_upload_ack_controls_loop_before_next_iteration(self):
         actions=b.build('example.local','worker')['WFWorkflowActions']
