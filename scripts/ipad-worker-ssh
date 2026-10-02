@@ -8,6 +8,9 @@ if [ "${SSH_ORIGINAL_COMMAND:-}" = "afm-ipad-worker-ping" ]; then
     exit $?
 fi
 case "${SSH_ORIGINAL_COMMAND:-}" in
+    afm-ipad-image-check-next) exec .venv/bin/python -m afm_hle.ipad_image_check claim ;;
+    afm-ipad-image-check-result) exec .venv/bin/python -m afm_hle.ipad_image_check submit ;;
+    afm-ipad-hle-pro-image-next) exec .venv/bin/python -m afm_hle.ipad_campaign claim-image ;;
     afm-ipad-hle-pro-next) exec .venv/bin/python -m afm_hle.ipad_campaign claim ;;
     afm-ipad-hle-pro-next-or-done) exec .venv/bin/python -m afm_hle.ipad_campaign claim-or-complete ;;
     afm-ipad-hle-pro-result) exec .venv/bin/python -m afm_hle.ipad_campaign submit ;;

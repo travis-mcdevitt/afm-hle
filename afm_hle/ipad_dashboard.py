@@ -11,18 +11,18 @@ from . import ipad_campaign as worker
 HTML=r'''<!doctype html><meta charset="utf-8"><title>iPad AFM Pro worker</title>
 <style>body{font:16px system-ui;background:#10151d;color:#eef2f6;max-width:1100px;margin:35px auto;padding:0 24px}button{padding:9px;margin:4px;border:0;border-radius:6px;cursor:pointer}a{color:#6fe0c1}table{width:100%;border-collapse:collapse}td,th{text-align:left;border-bottom:1px solid #394451;padding:10px}small{color:#abb8c9}.card{background:#1d2633;padding:22px;border-radius:12px;margin:20px 0}#error{color:#ffb2a7}</style>
 <h1>iPad · AFM Cloud Pro</h1><a href="http://127.0.0.1:1981/">Mac benchmark dashboard</a>
-<p>Start <b>AFM iPad HLE Pro</b> on the iPad to pull work. Mac controls apply at the next pull. Pause cannot cancel an Apple request already in progress.</p>
+<p>The detached Mac controller launches one iPad question at a time after each saved upload. Mac controls apply at the next pull. Pause cannot cancel an Apple request already in progress.</p>
 <div class="card"><h2 id="state">Connecting…</h2><p id="counts"></p>
 <button onclick="act('resume')">Resume queue</button><button onclick="act('pause')">Pause queue</button>
 <label>Batch size <input id="batch-size" type="number" min="1" max="100" value="7" style="width:65px"></label><button onclick="act('enqueue',{count:Number(document.getElementById('batch-size').value)})">Queue batch</button><button onclick="act('grade')">Grade saved answers</button>
-<p id="detail"></p><small>Stops at the first untouched image question until image transport is qualified. No automatic generation retries. Grades are separate from Mac results.</small></div>
+<p id="detail"></p><p id="remote"></p><small>Stops at the first untouched image question until image transport is qualified. No automatic generation retries. Grades are separate from Mac results.</small></div>
 <p><label>Retry a saved receipt upload from this Mac: <input id="receipt" type="file" accept=".txt"></label> <button onclick="upload()">Upload receipt (no model call)</button></p><p id="error"></p><p id="grading"></p><table><thead><tr><th>Sample #</th><th>Attempt</th><th>State</th><th>Round trip</th><th>Controls</th></tr></thead><tbody id="jobs"></tbody></table>
 <h2>Recent events</h2><pre id="events"></pre><script>
 const csrf='__TOKEN__';const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function act(action,extra={}){try{const r=await fetch('/api/control',{method:'POST',headers:{'Content-Type':'application/json','X-Worker-Control':csrf},body:JSON.stringify({action,...extra})});const x=await r.json();if(!r.ok)throw Error(x.error);document.getElementById('error').textContent=x.boundary?'Queued '+x.queued+'; stopped at sample #'+x.boundary.ordinal+' (image transport awaiting qualification).':'';await refresh()}catch(e){document.getElementById('error').textContent=e.message}}
 async function upload(){const f=document.getElementById('receipt').files[0];if(!f)return;await act('upload',{receipt:await f.text()})}
 function resolve(ticket,action){let acknowledge=false;if(['retry','skip'].includes(action)){acknowledge=confirm('Stop the iPad shortcut first. The previous call may have consumed quota. Retry creates a NEW attempt; upload an existing saved receipt instead if available. Continue?');if(!acknowledge)return}act(action,{ticket,acknowledge})}
-async function refresh(){try{const r=await fetch('/api/status',{cache:'no-store'});if(!r.ok)throw Error('Status unavailable');const s=await r.json();document.getElementById('state').textContent=s.control.enabled?'Queue armed':'Queue paused';document.getElementById('counts').textContent=s.saved+' answers saved · '+s.judged+' graded · '+s.correct+' correct';document.getElementById('detail').textContent=s.control.detail+' · Last iPad pull: '+(s.control.heartbeat||'none')+' · '+s.gateway_sync;document.getElementById('jobs').innerHTML=s.jobs.map(j=>{const unresolved=['inflight','unknown','failed','rate_limited'].includes(j.state);const actions=unresolved?['unknown','rate_limited','retry','skip']:j.state==='queued'?['cancel']:[];return '<tr><td>'+j.ordinal+'</td><td>'+j.attempt+'</td><td>'+esc(j.state)+'</td><td>'+(j.started&&j.finished?((new Date(j.finished)-new Date(j.started))/1000).toFixed(1)+'s':'—')+'</td><td>'+actions.map(a=>'<button onclick="resolve(\''+j.ticket+'\',\''+a+'\')">'+esc(a)+'</button>').join('')+'</td></tr>'}).join('');document.getElementById('events').textContent=s.events.map(e=>e.time+' '+e.action).join('\n');document.getElementById('grading').innerHTML='Grading: '+esc(s.grading_service)+' '+s.grades.filter(g=>!['done','inflight'].includes(g.status)).map(g=>'<button onclick="act(\'grade\',{retry_grade:'+g.attempt_id+'})">Retry grade '+g.attempt_id+'</button>').join('')}catch(e){document.getElementById('error').textContent=e.message}}
+async function refresh(){try{const r=await fetch('/api/status',{cache:'no-store'});if(!r.ok)throw Error('Status unavailable');const s=await r.json();document.getElementById('state').textContent=s.control.enabled?'Queue armed':'Queue paused';document.getElementById('counts').textContent=s.saved+' answers saved · '+s.judged+' graded · '+s.correct+' correct';document.getElementById('detail').textContent=s.control.detail+' · Last iPad pull: '+(s.control.heartbeat||'none')+' · '+s.gateway_sync;document.getElementById('remote').textContent='Remote controller: '+(s.remote?.phase||'Not started')+' '+(s.remote?.code||'');document.getElementById('jobs').innerHTML=s.jobs.map(j=>{const unresolved=['inflight','unknown','failed','rate_limited'].includes(j.state);const actions=unresolved?['unknown','rate_limited','retry','skip']:j.state==='queued'?['cancel']:[];return '<tr><td>'+j.ordinal+'</td><td>'+j.attempt+'</td><td>'+esc(j.state)+'</td><td>'+(j.started&&j.finished?((new Date(j.finished)-new Date(j.started))/1000).toFixed(1)+'s':'—')+'</td><td>'+actions.map(a=>'<button onclick="resolve(\''+j.ticket+'\',\''+a+'\')">'+esc(a)+'</button>').join('')+'</td></tr>'}).join('');document.getElementById('events').textContent=s.events.map(e=>e.time+' '+e.action).join('\n');document.getElementById('grading').innerHTML='Grading: '+esc(s.grading_service)+' '+s.grades.filter(g=>!['done','inflight'].includes(g.status)).map(g=>'<button onclick="act(\'grade\',{retry_grade:'+g.attempt_id+',image_grade:'+(g.grade_db==='ipad-image-judging.sqlite3')+'})">Retry grade '+g.attempt_id+'</button>').join('')}catch(e){document.getElementById('error').textContent=e.message}}
 refresh();setInterval(refresh,3000);
 </script>'''
 
@@ -31,11 +31,11 @@ def serve(directory,port):
     lock=(directory/'ipad-server.lock').open('a');fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
     token=secrets.token_urlsafe(32);stop=threading.Event();grade_lock=threading.Lock()
     grade_state={'text':'Idle','gateway':'Pending'}
-    def grade(retry=None):
+    def grade(retry=None,image=False):
         if not grade_lock.acquire(False):return
         try:
             grade_state['text']='Running'
-            code=worker.grade(directory,retry)
+            code=worker.grade(directory,retry,worker.IMAGE_PROTOCOL if image else worker.PROTOCOL)
             grade_state['text']='Idle' if code==0 else 'Failure retained for explicit retry'
         except Exception as e:grade_state['text']='Deferred: '+type(e).__name__
         finally:grade_lock.release()
@@ -61,7 +61,10 @@ def serve(directory,port):
             try:
                 if self.path=='/':self.reply(200,HTML.replace('__TOKEN__',token),True)
                 elif self.path=='/api/status':
-                    s=worker.status(directory);s['grading_service']=grade_state['text'];s['gateway_sync']=grade_state['gateway'];self.reply(200,s)
+                    s=worker.status(directory)
+                    from .ipad_remote import STATE
+                    s['remote']=json.loads((STATE/'state.json').read_text()) if (STATE/'state.json').exists() else {}
+                    s['grading_service']=grade_state['text'];s['gateway_sync']=grade_state['gateway'];self.reply(200,s)
                 else:self.reply(404,{'error':'not found'})
             except (BrokenPipeError,ConnectionResetError):pass
             except Exception:self.reply(503,{'error':'checkpoint temporarily busy'})
@@ -78,7 +81,7 @@ def serve(directory,port):
                 elif a in ('pause','resume'):result=worker.control(directory,a=='resume')
                 elif a=='enqueue':result=worker.enqueue(directory,data.get('count',7))
                 elif a=='grade':
-                    threading.Thread(target=grade,args=(data.get('retry_grade'),),daemon=True).start();result={'status':'grading requested'}
+                    threading.Thread(target=grade,args=(data.get('retry_grade'),data.get('image_grade') is True),daemon=True).start();result={'status':'grading requested'}
                 else:result=worker.resolve(directory,data.get('ticket'),a,data.get('acknowledge') is True)
                 self.reply(200,result)
             except ValueError as e:self.reply(409,{'error':str(e)})

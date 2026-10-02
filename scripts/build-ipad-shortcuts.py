@@ -52,6 +52,33 @@ def build_one(host,user,claim_command='afm-ipad-hle-pro-next'):
     return result
 
 
+def build_image_one(host,user,qualification=False):
+    result=build_one(host,user,'afm-ipad-image-check-next' if qualification else 'afm-ipad-hle-pro-image-next')
+    actions=result['WFWorkflowActions']
+    def variable(name):
+        return {'Value':{'Type':'Variable','VariableName':name},'WFSerializationType':'WFTextTokenAttachment'}
+    def add(name,**params):
+        params['UUID']=str(uuid.uuid4()).upper()
+        return {'WFWorkflowActionIdentifier':'is.workflow.actions.'+name,'WFWorkflowActionParameters':params}
+    get=add('getvalueforkey',WFDictionaryKey='image_base64',WFInput=variable('AFM Job'))
+    decode=add('base64encode',WFEncodeMode='Decode',WFInput=output(get['WFWorkflowActionParameters']['UUID']),WFBase64LineBreakMode='None')
+    image=add('detect.images',WFInput=output(decode['WFWorkflowActionParameters']['UUID']))
+    cache=add('setvariable',WFVariableName='AFM Image',WFInput=output(image['WFWorkflowActionParameters']['UUID']))
+    # Original prompt transcript is preserved with a newline attachment separator.
+    # The image is a separate
+    # native content attachment, never OCR or base64 text in the prompt.
+    ask=add('askllm',WFLLMModel='Apple Intelligence Pro',WFGenerativeResultType='Text',
+            WFLLMPrompt=token([variable('AFM Prompt'),'\n',variable('AFM Image')]))
+    actions[6]=ask
+    actions[7]['WFWorkflowActionParameters']['WFInput']=output(ask['WFWorkflowActionParameters']['UUID'],'Response')
+    actions[6:6]=[get,decode,image,cache]
+    if qualification:
+        for a in actions:
+            if a['WFWorkflowActionParameters'].get('WFSSHScript')=='afm-ipad-hle-pro-result':
+                a['WFWorkflowActionParameters']['WFSSHScript']='afm-ipad-image-check-result'
+    return result
+
+
 def build_batch(host,user,batch_size=100):
     if type(batch_size) is not int or not 1<=batch_size<=100:raise ValueError('batch_size must be 1–100')
     result=build_one(host,user,'afm-ipad-hle-pro-next-or-done')
@@ -136,3 +163,5 @@ if __name__=='__main__':
         (a.outdir/(name+'.unsigned.shortcut')).write_bytes(plistlib.dumps(build(a.host,a.user,retry),fmt=plistlib.FMT_BINARY))
     (a.outdir/'AFM iPad HLE Pro One.unsigned.shortcut').write_bytes(plistlib.dumps(build_one(a.host,a.user),fmt=plistlib.FMT_BINARY))
     (a.outdir/'AFM iPad HLE Pro Batch.unsigned.shortcut').write_bytes(plistlib.dumps(build_batch(a.host,a.user),fmt=plistlib.FMT_BINARY))
+    for name,qualification in [('AFM iPad Image Check',True),('AFM iPad HLE Pro Image One',False)]:
+        (a.outdir/(name+'.unsigned.shortcut')).write_bytes(plistlib.dumps(build_image_one(a.host,a.user,qualification),fmt=plistlib.FMT_BINARY))

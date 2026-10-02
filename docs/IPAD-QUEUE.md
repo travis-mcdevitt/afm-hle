@@ -7,27 +7,44 @@ replaced. iPad responses and grades remain a separate device stratum.
 
 ## Operate
 
-**AFM iPad HLE Pro Batch** wraps the named-variable one-question flow in a
-100-iteration ceiling. It reads the materialized upload acknowledgement before
-the next iteration. Its fixed SSH `next-or-done` command returns a clean end
-marker only when the enabled queue is empty and has no unresolved attempts;
-the shortcut checks that marker before invoking the model. Pauses and unresolved
-uploads still fail closed. Quota errors stop the shortcut and preserve the ticket.
-Run in the iPad foreground. Text-only allocation stops at image questions;
-finishing the iPad queue is distinct from finishing the complete HLE sample.
+The batch shortcut repeatedly stopped after its first successful upload. Use the
+**detached remote controller** instead: it remotely opens a one-question shortcut,
+waits for the matching saved receipt, then launches the next question. It reserves
+untouched questions in frozen order as needed and does not wait for grading.
 
-After repeated claim-before-upload failures, use **AFM iPad HLE Pro One** for
-qualification. It claims exactly one question, materializes the claim, ticket,
-prompt, answer, receipt and upload acknowledgement in named variables, saves a
-receipt, uploads it, and shows the acknowledgement. Its native Mac editor wiring
-was verified on October 2, followed by two successful iPad claim, answer, upload
-and grading round trips. **AFM iPad HLE Pro Batch** uses that same named-variable
-flow; its installed loop and completion guards are editor-verified, but a live
-batch run is still required. The first batch trial saved one answer and stopped
-silently. The upload guard now caches the scalar confirmation in a named variable
-and displays an explanatory message on an empty confirmation; this correction
-is editor-verified but needs a multi-iteration iPad trial. The older loop remains unverified. New tickets
-preserve superseded uncertain attempts and possible quota consumption.
+With the paired iPad connected, unlocked, powered and Developer Mode enabled:
+
+```sh
+.venv/bin/python -m afm_hle.ipad_remote start --device DEVICE_IDENTIFIER
+.venv/bin/python -m afm_hle.ipad_remote status
+```
+
+The device identifier and launch history are kept in `.private/ipad-remote/`.
+The controller runs detached and checks local checkpoints every 15 seconds; it
+requires no continuous AI observation. Stop the Mac generation supervisor before
+starting it, so only one Apple route collects at a time. A launch intent is saved
+before invoking CoreDevice. An unresolved launch or upload is never automatically
+replayed: after ten minutes it stops with `requires_review`. Check the iPad screen
+and saved receipts before authorizing a retry. Quota errors may require local
+interaction; this worker does not infer a reset or retry a quota-denied question.
+
+**AFM iPad HLE Pro One** handles text questions. **AFM iPad HLE Pro Image One**
+handles image questions with a native Cloud Pro image attachment. On October 2,
+**AFM iPad Image Check** correctly read a randomly generated code present only in
+image pixels, completing the claim, inference and upload round trip. This private
+qualification gates image allocation. Images use protocol
+`ipad-ssh-ticketed-native-image-v2`; text remains `ipad-ssh-ticketed-text-v1`.
+The original transcript is preserved with an explicit newline separator before
+the native attachment. Existing normalized PNG/JPEG bytes are transmitted by
+base64 and decoded on the iPad, without resizing, OCR or base64 text in the model
+prompt. Payload hashes and each dispatched attempt remain recorded.
+
+Image grades use `ipad-image-judging.sqlite3`, separate from the existing text
+`ipad-judging.sqlite3`, so their frozen manifests are not rewritten. The same
+frozen judge configuration grades both. Mac results remain a separate stratum.
+Completing untouched iPad work is distinct from resolving preserved Mac unknown
+attempts and coverage gaps; no existing uncertain Mac question is silently moved
+to the iPad.
 
 Open **http://127.0.0.1:1983/** on the Mac. The detached service provides:
 
@@ -35,7 +52,7 @@ Open **http://127.0.0.1:1983/** on the Mac. The detached service provides:
   already-running Apple call cannot be cancelled from this page; its result can
   still be uploaded while paused.
 - **Batch size / Queue batch**: choose 1–100 and reserve untouched questions in frozen order. Existing Mac
-  attempts, including uncertain calls, are not transferred. Allocation stops
+  attempts, including uncertain calls, are not transferred. Before image qualification, allocation stops
   at the first untouched image question, without skipping it or redefining the
   sample. The initial allocation is sample positions 194–200; position 193 is
   the preserved uncertain Mac attempt and position 201 requires an image.
@@ -54,20 +71,13 @@ Open **http://127.0.0.1:1983/** on the Mac. The detached service provides:
 - **Grade saved answers / Retry grade**: grading runs separately and failures
   remain recorded until explicitly retried. Generation does not wait for grades.
 
-Run **AFM iPad HLE Pro** on the iPad. It repeats at most 100 times, pulling
-one ticket, extracting the prompt, invoking **AFM Bridge - Cloud Pro**, encoding
-its answer, saving a uniquely named receipt in the Shortcuts folder, and then
-uploading that receipt. The save action precedes the upload. Keep Shortcuts in
-the foreground initially; unattended background execution is not verified.
-First-run iPad permission prompts may require local interaction.
-
 **AFM iPad Retry Upload** selects a saved receipt and uploads it without invoking
 Apple. Receipts may be available on the Mac through the Shortcuts iCloud folder.
 Keep the file when an upload fails. Do not create a replacement generation until
 the old worker has stopped and its receipt has been checked.
 
 The SSH setup alone cannot remotely launch iPad Shortcuts. Resume arms the server-side queue;
-if the iPad shortcut has already stopped, start it again on the iPad. A paused,
+the paired CoreDevice controller supplies remote launches when configured. A paused,
 empty, or unresolved queue makes the claim SSH action exit with an explanatory
 error before any model action runs. This is a safe stop, not a new model failure.
 
@@ -105,8 +115,8 @@ payload and hash, exact rendered prompt and hash, timestamps, original base64
 receipt bytes, decoded answer and conversion label. Text rendering matches the
 installed Hollis `chat.RenderTranscript` system/user framing. The original RTF
 upload is retained when `textutil` extracts text. No reference answers are sent
-to the iPad. Image transport is still unqualified and cannot silently fall back
-to text-only prompting.
+to the iPad. Image questions require the qualified native image worker and cannot
+silently fall back to text-only prompting.
 
 The private `ipad-protocol.json` records device/OS and installed action hashes.
 `ipad-judging.sqlite3` stores a generation-disabled snapshot and separate grader
@@ -152,8 +162,8 @@ The public generator `scripts/build-ipad-shortcuts.py` accepts local `--host`,
 `--user`, and `--outdir` arguments. Generate into `.private/`, sign with Apple's
 `shortcuts sign --mode people-who-know-me`, and import in Shortcuts. No SSH private
 key is embedded. Review the native editor after import. The deployed shortcuts
-were inspected on the Mac; the first real iPad HLE round trip remains the live
-transport validation.
+were inspected on the Mac and live text round trips were verified on the iPad.
+The separate image qualification is recorded privately.
 
 ### SSH handoff timing
 
@@ -173,7 +183,8 @@ batch and still stops before unqualified image input. Each iteration consumes
 the upload's `status` in an If action before End Repeat, and stops if the
 acknowledgement is absent. SSH errors also abort the loop. The conditional's
 native macOS 27 variable wrapper and condition were verified in the editor.
-Actual multi-iteration iPad behavior remains to be confirmed after this update.
+Live batch trials stopped after one upload; the detached one-question controller
+is now the collection path.
 
 The observed Mac Pro rule was 100 requests in 86,400 seconds. This does not prove
 an iPad daily allowance or a midnight reset. Qualification calls and failed or

@@ -28,6 +28,7 @@ DEFAULT = ROOT / '.private/campaign'
 DEVICE = 'ipad-air-m3'
 MODEL = 'afm-cloud-pro'
 PROTOCOL = 'ipad-ssh-ticketed-text-v1'
+IMAGE_PROTOCOL = 'ipad-ssh-ticketed-native-image-v2'
 MAX_RESULT = 2 * 1024 * 1024
 
 
@@ -47,6 +48,8 @@ def schema(db):
         id INTEGER PRIMARY KEY, time TEXT NOT NULL, ticket TEXT, action TEXT NOT NULL);
       INSERT OR IGNORE INTO ipad_controls VALUES(1,0,'',NULL,'Not armed');
     ''')
+    if 'job_protocol' not in {r[1] for r in db.execute('PRAGMA table_info(ipad_jobs)')}:
+        db.execute("ALTER TABLE ipad_jobs ADD COLUMN job_protocol TEXT NOT NULL DEFAULT 'ipad-ssh-ticketed-text-v1'")
 
 
 @contextlib.contextmanager
@@ -61,14 +64,20 @@ def event(db, ticket, action):
                (cli.stamp(), ticket, action))
 
 
-def render(body):
+def image_qualified(directory):
+    path=Path(directory)/'ipad-image-qualification.json'
+    return path.exists() and json.loads(path.read_text()).get('qualified') is True
+
+
+def render(body, allow_images=False):
     """Exact Hollis chat.RenderTranscript for the HLE system/user text shape."""
     messages = body['messages']
     if len(messages)!=2 or messages[0]['role']!='system' or messages[1]['role']!='user':
         raise ValueError('unsupported prompt shape')
     content=messages[1]['content']
-    if len(content)!=1 or content[0]['type']!='text':
+    if not content or content[0]['type']!='text' or (len(content)!=1 and not allow_images):
         raise ValueError('image transport is not yet qualified; no question skipped')
+    if any(c['type']!='image_url' for c in content[1:]):raise ValueError('unsupported attachment')
     prompt=('You are continuing an existing conversation.\n\nSYSTEM:\n'+messages[0]['content']+
             '\n\nUSER:\n'+content[0]['text']+
             '\n\nRespond to the final USER message while preserving the conversation context.\n')
@@ -85,6 +94,8 @@ def add_job(db, qid, ordinal, body, prompt):
                (ticket,qid,MODEL,ordinal,attempt,cli.encode(body).decode(),cli.digest(body),prompt,
                 hashlib.sha256(prompt.encode()).hexdigest(),cli.stamp()))
     db.execute("UPDATE items SET status='device_reserved' WHERE qid=? AND model=?",(qid,MODEL))
+    if len(body['messages'][1]['content'])>1:
+        db.execute('UPDATE ipad_jobs SET job_protocol=? WHERE ticket=?',(IMAGE_PROTOCOL,ticket))
     event(db,ticket,'reserved:'+DEVICE)
     return ticket
 
@@ -106,9 +117,9 @@ def enqueue(directory, count):
                 if not item or item[0]!='pending':continue
                 # Do not move an earlier uncertain/retried Mac attempt to iPad.
                 if db.execute('SELECT 1 FROM attempts WHERE qid=? AND model=?',(q['id'],MODEL)).fetchone():continue
-                if q.get('image'):
+                if q.get('image') and not image_qualified(directory):
                     boundary={'ordinal':ordinal,'reason':'image transport awaiting qualification'};break
-                body=cli.payload(q,MODEL);prompt=render(body)
+                body=cli.payload(q,MODEL);prompt=render(body,allow_images=bool(q.get('image')))
                 added.append(add_job(db,q['id'],ordinal,body,prompt))
                 if len(added)>=count:break
             event(db,None,'enqueue:'+str(len(added)))
@@ -123,7 +134,7 @@ def control(directory, enabled):
     return {'enabled':enabled}
 
 
-def claim(directory):
+def claim(directory, image_mode=False):
     with queue(directory) as db, db:
         db.execute('UPDATE ipad_controls SET heartbeat=? WHERE id=1',(cli.stamp(),))
         if not db.execute('SELECT enabled FROM ipad_controls').fetchone()[0]:raise ValueError('Queue paused on Mac')
@@ -131,10 +142,20 @@ def claim(directory):
             raise ValueError('Previous iPad attempt unresolved; retry upload or resolve on Mac')
         row=db.execute("SELECT * FROM ipad_jobs WHERE state='queued' ORDER BY ordinal,attempt LIMIT 1").fetchone()
         if not row:raise ValueError('No queued questions; stopped without inference')
+        image=row['job_protocol']==IMAGE_PROTOCOL
+        if image!=image_mode:raise ValueError('Question requires the matching text or image worker; no inference')
+        if image and not image_qualified(directory):raise ValueError('image qualification missing')
         db.execute("UPDATE ipad_jobs SET state='inflight',started=? WHERE ticket=?",(cli.stamp(),row['ticket']))
         event(db,row['ticket'],'claimed')
-        return {'ticket':row['ticket'],'prompt':row['prompt'],'model':MODEL,
-                'ordinal':row['ordinal'],'payload_sha256':row['payload_hash'],'protocol':PROTOCOL}
+        result={'ticket':row['ticket'],'prompt':row['prompt'],'model':MODEL,
+                'ordinal':row['ordinal'],'payload_sha256':row['payload_hash'],'protocol':row['job_protocol']}
+        if image:
+            content=json.loads(row['payload'])['messages'][1]['content']
+            if len(content)!=2:raise ValueError('single image required')
+            url=content[1]['image_url']['url']
+            if not url.startswith(('data:image/png;base64,','data:image/jpeg;base64,')):raise ValueError('normalized image required')
+            result['image_base64']=url.split(',',1)[1]
+        return result
 
 
 def claim_wait(directory, timeout=15, interval=0.25):
@@ -243,15 +264,17 @@ def resolve(directory,ticket,action,acknowledge=False):
     return {'status':'resolved','action':action}
 
 
-def sync_judging(directory):
+def sync_judging(directory,protocol=PROTOCOL):
     """Append completed iPad answers to a separate, generation-disabled grade DB."""
     directory=Path(directory)
     with queue(directory) as source:
         manifest=json.loads(source.execute('SELECT manifest FROM config').fetchone()[0])
-        rows=[dict(r) for r in source.execute("SELECT rowid AS seq,* FROM ipad_jobs WHERE state='done' ORDER BY rowid")]
+        rows=[dict(r) for r in source.execute("SELECT rowid AS seq,* FROM ipad_jobs WHERE state='done' AND job_protocol=? ORDER BY rowid",(protocol,))]
     manifest.update(device_id=DEVICE,device_model='iPad Air 11-inch M3',os='iPadOS 27.0',
                     protocol=PROTOCOL,transport='restricted SSH pull',image_transport='not qualified')
-    with cli.state(directory/'ipad-judging.sqlite3') as db:
+    if protocol==IMAGE_PROTOCOL:
+        manifest.update(protocol=IMAGE_PROTOCOL,image_transport='qualified PNG/JPEG native attachment; original bytes preserved')
+    with cli.state(directory/('ipad-image-judging.sqlite3' if protocol==IMAGE_PROTOCOL else 'ipad-judging.sqlite3')) as db:
         existing=db.execute('SELECT manifest FROM config').fetchone()
         serialized=cli.encode(manifest).decode()
         if existing and existing[0]!=serialized:raise ValueError('iPad manifest changed')
@@ -271,35 +294,39 @@ def sync_judging(directory):
             db.execute('UPDATE generation_snapshot SET responses_sha256=?',(cli.digest(responses),))
 
 
-def grade(directory, retry_id=None):
-    sync_judging(directory)
+def grade(directory, retry_id=None,protocol=PROTOCOL):
+    sync_judging(directory,protocol)
     plan=campaign.load_plan(directory)
-    args=argparse.Namespace(db=Path(directory)/'ipad-judging.sqlite3',data=Path(plan['data_path']),
+    args=argparse.Namespace(db=Path(directory)/('ipad-image-judging.sqlite3' if protocol==IMAGE_PROTOCOL else 'ipad-judging.sqlite3'),data=Path(plan['data_path']),
         env_file=ROOT/'.env',model=plan['judge_model'],schema_profile=plan['schema_profile'],
         budget_usd=plan['budget_usd'],input_rate=plan['input_rate'],output_rate=plan['output_rate'],
         max_calls=20,max_samples=plan['sample_size'],models=[MODEL],retry_attempt=retry_id,continue_on_error=True)
-    return judge.run(args)
+    result=judge.run(args)
+    if protocol==PROTOCOL and retry_id is None and image_qualified(directory):
+        return max(result,grade(directory,protocol=IMAGE_PROTOCOL))
+    return result
 
 
 def status(directory):
     with queue(directory) as db:
         c=dict(db.execute('SELECT * FROM ipad_controls').fetchone())
         jobs=[dict(r) for r in db.execute('''SELECT ticket,ordinal,attempt,state,created,started,finished,
-                                            encoding,payload_hash,prompt_hash FROM ipad_jobs ORDER BY ordinal,attempt''')]
+                                            encoding,payload_hash,prompt_hash,job_protocol FROM ipad_jobs ORDER BY ordinal,attempt''')]
         events=[dict(r) for r in db.execute('SELECT time,ticket,action FROM ipad_events ORDER BY id DESC LIMIT 30')]
     grades=[]
-    path=Path(directory)/'ipad-judging.sqlite3'
-    if path.exists():
+    for name in ('ipad-judging.sqlite3','ipad-image-judging.sqlite3'):
+        path=Path(directory)/name
+        if not path.exists():continue
         with contextlib.closing(campaign.connect(path)) as db:
             if db.execute("SELECT 1 FROM sqlite_master WHERE name='grades'").fetchone():
-                grades=[dict(r) for r in db.execute('SELECT attempt_id,status,estimated_cost_usd,grade FROM grades')]
+                grades.extend(dict(r,grade_db=name) for r in db.execute('SELECT attempt_id,status,estimated_cost_usd,grade FROM grades'))
     done=[g for g in grades if g['status']=='done']
     return {'device':DEVICE,'model':MODEL,'protocol':PROTOCOL,'control':c,'jobs':jobs,'events':events,
             'saved':sum(j['state']=='done' for j in jobs),'grades':[{k:v for k,v in g.items() if k!='grade'} for g in grades],
             'judged':len(done),'correct':sum(json.loads(g['grade'])['correct']=='yes' for g in done),
             'output_tokens':None,'reasoning_tokens':None,'ttft_ms':None,
             'scope':'iPad stratum only; not pooled with Mac scores. Round-trip timing includes SSH/Shortcut overhead.',
-            'image_policy':'Stop at first untouched image; retain frozen sample and coverage gaps.'}
+            'image_policy':'Qualified native image worker' if image_qualified(directory) else 'Stop at first untouched image; retain frozen sample and coverage gaps.'}
 
 
 def mirror_gateway(directory, path=None):
@@ -325,7 +352,7 @@ def mirror_gateway(directory, path=None):
             db.execute("""INSERT INTO worker_calls VALUES(?,?,?,?,?,?,?,?,?,?,?,?,NULL,NULL,NULL,NULL)
               ON CONFLICT(id) DO UPDATE SET state=excluded.state,started=excluded.started,
               finished=excluded.finished,duration_ms=excluded.duration_ms,response_bytes=excluded.response_bytes""",
-              (row['ticket'],DEVICE,MODEL,PROTOCOL,row['state'],row['created'],row['started'],row['finished'],duration,
+              (row['ticket'],DEVICE,MODEL,row['job_protocol'],row['state'],row['created'],row['started'],row['finished'],duration,
                len(row['prompt'].encode()),len(base64.b64decode(row['raw_b64'])) if row['raw_b64'] else None,row['payload_hash']))
     return len(rows)
 
@@ -333,21 +360,23 @@ def mirror_gateway(directory, path=None):
 def main():
     os.umask(0o077)
     p=argparse.ArgumentParser(description=__doc__)
-    p.add_argument('command',choices=['enqueue','resume','pause','claim','claim-or-complete','submit','status','retry','unknown','rate_limited','skip','cancel','grade','start','server'])
+    p.add_argument('command',choices=['enqueue','resume','pause','claim','claim-image','claim-or-complete','submit','status','retry','unknown','rate_limited','skip','cancel','grade','start','server'])
     p.add_argument('--directory',type=Path,default=DEFAULT)
     p.add_argument('--count',type=int,default=7)
     p.add_argument('--ticket');p.add_argument('--acknowledge-uncertain',action='store_true')
     p.add_argument('--retry-grade',type=int)
+    p.add_argument('--image-grade',action='store_true')
     p.add_argument('--port',type=int,default=1983)
     a=p.parse_args();d=a.directory.resolve()
     try:
         if a.command=='enqueue':result=enqueue(d,a.count)
         elif a.command in ('pause','resume'):result=control(d,a.command=='resume')
         elif a.command=='claim':result=claim_wait(d)
+        elif a.command=='claim-image':result=claim(d,image_mode=True)
         elif a.command=='claim-or-complete':result=claim_or_complete(d)
         elif a.command=='submit':result=submit(d,sys.stdin.buffer)
         elif a.command=='status':result=status(d)
-        elif a.command=='grade':result={'exit_code':grade(d,a.retry_grade)}
+        elif a.command=='grade':result={'exit_code':grade(d,a.retry_grade,IMAGE_PROTOCOL if a.image_grade else PROTOCOL)}
         elif a.command=='server':
             from .ipad_dashboard import serve
             serve(d,a.port);return
