@@ -7,6 +7,25 @@ replaced. iPad responses and grades remain a separate device stratum.
 
 ## Operate
 
+**AFM iPad HLE Pro Batch** wraps the named-variable one-question flow in a
+100-iteration ceiling. It reads the materialized upload acknowledgement before
+the next iteration. Its fixed SSH `next-or-done` command returns a clean end
+marker only when the enabled queue is empty and has no unresolved attempts;
+the shortcut checks that marker before invoking the model. Pauses and unresolved
+uploads still fail closed. Quota errors stop the shortcut and preserve the ticket.
+Run in the iPad foreground. Text-only allocation stops at image questions;
+finishing the iPad queue is distinct from finishing the complete HLE sample.
+
+After repeated claim-before-upload failures, use **AFM iPad HLE Pro One** for
+qualification. It claims exactly one question, materializes the claim, ticket,
+prompt, answer, receipt and upload acknowledgement in named variables, saves a
+receipt, uploads it, and shows the acknowledgement. Its native Mac editor wiring
+was verified on October 2, followed by two successful iPad claim, answer, upload
+and grading round trips. **AFM iPad HLE Pro Batch** uses that same named-variable
+flow; its installed loop and completion guards are editor-verified, but a live
+batch run is still required. The older loop remains unverified. New tickets
+preserve superseded uncertain attempts and possible quota consumption.
+
 Open **http://127.0.0.1:1983/** on the Mac. The detached service provides:
 
 - **Resume queue / Pause queue**: enable or disable the next iPad claim. An

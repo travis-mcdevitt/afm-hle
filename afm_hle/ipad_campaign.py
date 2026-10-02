@@ -161,6 +161,17 @@ def claim_wait(directory, timeout=15, interval=0.25):
             time.sleep(min(interval,max(0,deadline-time.monotonic())))
 
 
+def claim_or_complete(directory):
+    """Empty queue is a clean batch end; unresolved work still fails closed."""
+    with queue(directory) as db:
+        enabled=db.execute('SELECT enabled FROM ipad_controls').fetchone()[0]
+        unresolved=db.execute("SELECT 1 FROM ipad_jobs WHERE state IN ('inflight','unknown','rate_limited','failed')").fetchone()
+        queued=db.execute("SELECT 1 FROM ipad_jobs WHERE state='queued'").fetchone()
+        if enabled and not unresolved and not queued:
+            return {'status':'complete','ticket':'','prompt':''}
+    return claim_wait(directory)
+
+
 def decode_answer(raw):
     text=raw.decode('utf-8')
     if not text.strip():raise ValueError('empty answer')
@@ -322,7 +333,7 @@ def mirror_gateway(directory, path=None):
 def main():
     os.umask(0o077)
     p=argparse.ArgumentParser(description=__doc__)
-    p.add_argument('command',choices=['enqueue','resume','pause','claim','submit','status','retry','unknown','rate_limited','skip','cancel','grade','start','server'])
+    p.add_argument('command',choices=['enqueue','resume','pause','claim','claim-or-complete','submit','status','retry','unknown','rate_limited','skip','cancel','grade','start','server'])
     p.add_argument('--directory',type=Path,default=DEFAULT)
     p.add_argument('--count',type=int,default=7)
     p.add_argument('--ticket');p.add_argument('--acknowledge-uncertain',action='store_true')
@@ -333,6 +344,7 @@ def main():
         if a.command=='enqueue':result=enqueue(d,a.count)
         elif a.command in ('pause','resume'):result=control(d,a.command=='resume')
         elif a.command=='claim':result=claim_wait(d)
+        elif a.command=='claim-or-complete':result=claim_or_complete(d)
         elif a.command=='submit':result=submit(d,sys.stdin.buffer)
         elif a.command=='status':result=status(d)
         elif a.command=='grade':result={'exit_code':grade(d,a.retry_grade)}

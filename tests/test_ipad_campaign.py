@@ -79,6 +79,22 @@ class ClaimHandoffTests(unittest.TestCase):
     start=IPadCampaignTests.start
     envelope=IPadCampaignTests.envelope
 
+    def test_completion_only_when_enabled_empty_and_resolved(self):
+        from unittest.mock import patch
+        w.control(self.d,True)
+        self.assertEqual(w.claim_or_complete(self.d),{'status':'complete','ticket':'','prompt':''})
+        w.control(self.d,False)
+        with self.assertRaises(ValueError):w.claim_or_complete(self.d)
+        old=self.start()
+        with patch.object(w,'claim_wait',side_effect=ValueError('unresolved')) as wait:
+            with self.assertRaises(ValueError):w.claim_or_complete(self.d)
+            wait.assert_called_once_with(self.d)
+        w.submit(self.d,self.envelope(old['ticket']))
+        new=w.claim_or_complete(self.d)
+        self.assertEqual(new['ordinal'],3)
+        w.submit(self.d,self.envelope(new['ticket']))
+        self.assertEqual(w.claim_or_complete(self.d)['status'],'complete')
+
     def test_next_claim_waits_for_existing_upload_without_replaying(self):
         from unittest.mock import patch
         old=self.start()

@@ -5,6 +5,19 @@ spec=importlib.util.spec_from_file_location('builder',Path(__file__).resolve().p
 b=importlib.util.module_from_spec(spec);spec.loader.exec_module(b)
 
 class ShortcutFlowTests(unittest.TestCase):
+    def test_verified_batch_caches_claim_and_checks_empty_before_model(self):
+        actions=b.build_batch('h','u')['WFWorkflowActions']
+        commands=[a['WFWorkflowActionParameters'].get('WFSSHScript') for a in actions if a['WFWorkflowActionIdentifier'].endswith('runsshscript')]
+        self.assertEqual(commands,['afm-ipad-hle-pro-next-or-done','afm-ipad-hle-pro-result'])
+        ticket_guard=next(i for i,a in enumerate(actions) if a['WFWorkflowActionIdentifier'].endswith('conditional'))
+        model=next(i for i,a in enumerate(actions) if a['WFWorkflowActionIdentifier'].endswith('runworkflow'))
+        self.assertLess(ticket_guard,model)
+        gets=[a for a in actions if a['WFWorkflowActionIdentifier'].endswith('getvalueforkey')]
+        for get in gets[:2]:
+            self.assertEqual(get['WFWorkflowActionParameters']['WFInput']['Value'],{'Type':'Variable','VariableName':'AFM Job'})
+        self.assertEqual(actions[-2]['WFWorkflowActionParameters']['WFControlFlowMode'],2)
+        self.assertEqual(gets[-1]['WFWorkflowActionParameters']['WFInput']['Value']['VariableName'],'AFM Upload Status')
+
     def test_upload_ack_controls_loop_before_next_iteration(self):
         actions=b.build('example.local','worker')['WFWorkflowActions']
         self.assertEqual(actions[0]['WFWorkflowActionParameters']['WFRepeatCount'],100)
