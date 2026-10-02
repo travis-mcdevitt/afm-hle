@@ -66,15 +66,32 @@ Apple. Receipts may be available on the Mac through the Shortcuts iCloud folder.
 Keep the file when an upload fails. Do not create a replacement generation until
 the old worker has stopped and its receipt has been checked.
 
-The current SSH setup cannot remotely launch iPad Shortcuts. Resume arms the server-side queue;
+The SSH setup alone cannot remotely launch iPad Shortcuts. Resume arms the server-side queue;
 if the iPad shortcut has already stopped, start it again on the iPad. A paused,
 empty, or unresolved queue makes the claim SSH action exit with an explanatory
 error before any model action runs. This is a safe stop, not a new model failure.
 
 Apple's `shortcuts://run-shortcut?name=...` links launch on the device that opens
-the URL, rather than targeting another device. An Xcode device inventory on
-October 2 found no paired devices. Remote launching through developer tooling
-would need device pairing and separate validation; it is not configured.
+the URL. On October 2, cable trust paired the iPad with CoreDevice; after the
+operator enabled Developer Mode and restarted, `devicectl` remotely opened
+Shortcuts and delivered the batch URL. A new queue claim at the matching launch
+time verified actual shortcut execution. This establishes remote starting, not
+unattended multi-question completion or operation while locked.
+
+With the iPad paired, connected, unlocked and Developer Mode enabled:
+
+```sh
+xcrun devicectl list devices
+xcrun devicectl device process launch --device DEVICE_IDENTIFIER \
+  --payload-url 'shortcuts://run-shortcut?name=AFM%20iPad%20HLE%20Pro%20Batch' \
+  --timeout 20 com.apple.shortcuts
+```
+
+Replace `DEVICE_IDENTIFIER` with the paired iPad identifier from the inventory.
+Check the queue first: do not launch a second worker while an attempt is in flight
+or unresolved. A successful launch command is not proof of a saved answer;
+verify the claim and upload events on the dashboard. Keep personal identifiers
+in private local state, not this public document.
 
 ## Data, provenance, and accounting
 
